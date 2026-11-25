@@ -57,7 +57,7 @@ export default function Home() {
             Free PDF tools · No sign-up
           </p>
           <h1 className="rise-in rise-in--1 mx-auto mt-4 max-w-3xl font-display text-4xl font-bold leading-tight text-slate-900 sm:text-5xl">
-            Free PDF tools — get your PDFs done,{" "}
+            PDF World — free PDF tools, done{" "}
             <span className="text-gradient-animated">without sending them anywhere.</span>
           </h1>
           <p className="rise-in rise-in--2 mx-auto mt-4 max-w-2xl text-lg leading-relaxed text-slate-600">

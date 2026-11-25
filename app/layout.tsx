@@ -24,27 +24,27 @@ const inter = Inter({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Free PDF Tools Online — Merge, Split, Compress, Convert | PDF World",
+    default: "PDF World — Free PDF Tools Online | Merge, Split, Compress, Convert",
     template: "%s | PDF World",
   },
   description:
-    "Free PDF tools that run entirely in your browser: merge, split, compress, convert and secure PDFs, plus a free resume builder. No sign-up, no uploads.",
+    "PDF World — free PDF tools in your browser: merge, split, compress, convert and secure PDFs, plus a free resume builder. No sign-up, no uploads.",
   alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     siteName: "PDF World",
     locale: "en_US",
     url: "/",
-    title: "Free PDF Tools Online — Merge, Split, Compress, Convert | PDF World",
+    title: "PDF World — Free PDF Tools Online | Merge, Split, Compress, Convert",
     description:
-      "Free PDF tools that run entirely in your browser: merge, split, compress, convert and secure PDFs, plus a free resume builder. No sign-up, no uploads.",
+      "PDF World — free PDF tools in your browser: merge, split, compress, convert and secure PDFs, plus a free resume builder. No sign-up, no uploads.",
     images: [{ url: "/pdf-world-icon-512.png", width: 512, height: 512, alt: "PDF World logo" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Free PDF Tools Online — Merge, Split, Compress, Convert | PDF World",
+    title: "PDF World — Free PDF Tools Online | Merge, Split, Compress, Convert",
     description:
-      "Free PDF tools that run entirely in your browser: merge, split, compress, convert and secure PDFs, plus a free resume builder. No sign-up, no uploads.",
+      "PDF World — free PDF tools in your browser: merge, split, compress, convert and secure PDFs, plus a free resume builder. No sign-up, no uploads.",
     images: ["/pdf-world-icon-512.png"],
   },
   // AdSense account verification + ad script. No ad units yet, so no ads display.
