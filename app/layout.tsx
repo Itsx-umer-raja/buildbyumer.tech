@@ -48,8 +48,10 @@ export const metadata: Metadata = {
     images: ["/pdf-world-icon-512.png"],
   },
   // AdSense account verification + ad script. No ad units yet, so no ads display.
+  // Google Search Console site verification.
   other: {
     "google-adsense-account": "ca-pub-3234707846484197",
+    "google-site-verification": "zmGNjTLRyuaCke1vxE94q4d8uypZruTRLVNN6KKT4nA",
   },
 };
 
