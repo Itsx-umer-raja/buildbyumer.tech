@@ -3,6 +3,8 @@
 // no network. The summary writer fills proven sentence templates with the
 // user's own details.
 
+import { getResumeFont, getResumeTheme, TEMPLATE_DEFAULT_FONTS } from "./resume-fonts";
+
 export interface ExperienceItem {
   id: string;
   role: string;
@@ -234,31 +236,50 @@ export function buildSummary(data: ResumeData, profession: string, tone: Summary
 }
 
 // ---------------------------------------------------------------------------
-// .docx export via the docx library (already installed).
+// .docx export via the docx library (already installed). The chosen font and
+// colour theme carry into the Word file: headings and the name use the font
+// (display fonts apply to headings only, body stays readable), and headings
+// use the theme accent. Word substitutes a font it does not have installed.
 // ---------------------------------------------------------------------------
 
-export async function buildResumeDocx(data: ResumeData, fmt: DateFormat): Promise<Blob> {
+export async function buildResumeDocx(
+  data: ResumeData,
+  fmt: DateFormat,
+  opts: { fontId?: string | null; themeId?: string; template?: ResumeTemplateId } = {},
+): Promise<Blob> {
   const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = await import("docx");
+  const template = opts.template ?? "modern";
+  const font = opts.fontId ? getResumeFont(opts.fontId) : getResumeFont(TEMPLATE_DEFAULT_FONTS[template]);
+  const theme = getResumeTheme(opts.themeId);
+  const accent = theme.accent.replace("#", "");
+  // Display fonts (e.g. Bebas Neue, Dancing Script) go on headings only;
+  // the body uses the template's default font so it stays readable.
+  const bodyFont = font.headingOnly ? getResumeFont(TEMPLATE_DEFAULT_FONTS[template]).docxName : font.docxName;
+  const headFont = font.docxName;
+
   const children: InstanceType<typeof Paragraph>[] = [];
 
   const heading = (text: string) =>
     new Paragraph({
       heading: HeadingLevel.HEADING_2,
       spacing: { before: 240, after: 80 },
-      children: [new TextRun({ text, bold: true, size: 26, color: "0F766E" })],
+      children: [new TextRun({ text, bold: true, size: 26, color: accent, font: headFont })],
     });
+
+  const body = (text: string, extra: { bold?: boolean; italics?: boolean; size?: number; color?: string } = {}) =>
+    new TextRun({ text, font: bodyFont, ...extra });
 
   children.push(
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: data.fullName || "Your Name", bold: true, size: 44 })],
+      children: [new TextRun({ text: data.fullName || "Your Name", bold: true, size: 44, font: headFont })],
     }),
   );
   if (data.title.trim()) {
     children.push(
       new Paragraph({
         alignment: AlignmentType.CENTER,
-        children: [new TextRun({ text: data.title, size: 26, color: "475569" })],
+        children: [new TextRun({ text: data.title, size: 26, color: "475569", font: bodyFont })],
       }),
     );
   }
@@ -270,13 +291,13 @@ export async function buildResumeDocx(data: ResumeData, fmt: DateFormat): Promis
       new Paragraph({
         alignment: AlignmentType.CENTER,
         spacing: { after: 120 },
-        children: [new TextRun({ text: contact, size: 20, color: "475569" })],
+        children: [new TextRun({ text: contact, size: 20, color: "475569", font: bodyFont })],
       }),
     );
   }
   if (data.summary.trim()) {
     children.push(heading("Summary"));
-    children.push(new Paragraph({ children: [new TextRun({ text: data.summary, size: 22 })] }));
+    children.push(new Paragraph({ children: [body(data.summary, { size: 22 })] }));
   }
   if (data.experience.some((e) => e.role.trim() || e.company.trim())) {
     children.push(heading("Experience"));
@@ -286,19 +307,19 @@ export async function buildResumeDocx(data: ResumeData, fmt: DateFormat): Promis
         new Paragraph({
           spacing: { before: 120 },
           children: [
-            new TextRun({ text: e.role, bold: true, size: 24 }),
-            new TextRun({ text: e.company ? ` — ${e.company}` : "", size: 24 }),
+            body(e.role, { bold: true, size: 24 }),
+            new TextRun({ text: e.company ? ` — ${e.company}` : "", size: 24, font: bodyFont }),
           ],
         }),
       );
       const range = formatRange(e.start, e.end, e.current, fmt);
       if (range) {
         children.push(
-          new Paragraph({ children: [new TextRun({ text: range, italics: true, size: 20, color: "475569" })] }),
+          new Paragraph({ children: [body(range, { italics: true, size: 20, color: "475569" })] }),
         );
       }
       for (const b of bulletList(e.bullets)) {
-        children.push(new Paragraph({ bullet: { level: 0 }, children: [new TextRun({ text: b, size: 22 })] }));
+        children.push(new Paragraph({ bullet: { level: 0 }, children: [body(b, { size: 22 })] }));
       }
     }
   }
@@ -309,15 +330,15 @@ export async function buildResumeDocx(data: ResumeData, fmt: DateFormat): Promis
       children.push(
         new Paragraph({
           children: [
-            new TextRun({ text: e.degree, bold: true, size: 24 }),
-            new TextRun({ text: e.school ? ` — ${e.school}` : "", size: 24 }),
+            body(e.degree, { bold: true, size: 24 }),
+            new TextRun({ text: e.school ? ` — ${e.school}` : "", size: 24, font: bodyFont }),
           ],
         }),
       );
       const range = formatRange(e.start, e.end, false, fmt);
       if (range) {
         children.push(
-          new Paragraph({ children: [new TextRun({ text: range, italics: true, size: 20, color: "475569" })] }),
+          new Paragraph({ children: [body(range, { italics: true, size: 20, color: "475569" })] }),
         );
       }
     }
@@ -325,15 +346,15 @@ export async function buildResumeDocx(data: ResumeData, fmt: DateFormat): Promis
   const skills = skillList(data.skills);
   if (skills.length) {
     children.push(heading("Skills"));
-    children.push(new Paragraph({ children: [new TextRun({ text: skills.join("  ·  "), size: 22 })] }));
+    children.push(new Paragraph({ children: [body(skills.join("  ·  "), { size: 22 })] }));
   }
 
   const doc = new Document({
-    creator: "PageForge Resume Builder",
+    creator: "PDF World Resume Builder",
     title: `${data.fullName || "Resume"} — ${data.title || "Resume"}`,
     sections: [{ children }],
   });
   return Packer.toBlob(doc);
 }
 
-export const STORAGE_KEY = "pageforge-resume-v1";
+export const STORAGE_KEY = "pdfworld-resume-v1";

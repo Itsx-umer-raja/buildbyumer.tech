@@ -1,4 +1,4 @@
-# PageForge — free PDF tools that run in your browser
+# PDF World — free PDF tools that run in your browser
 
 Merge, split, compress, convert, rotate, organize, watermark, number, protect
 and unlock PDF files — plus a free resume builder. Every PDF tool runs
@@ -68,8 +68,10 @@ processed in memory, and the result is downloaded straight back. Nothing is
 stored afterwards. The resume builder saves only in the visitor's own
 browser (localStorage) when they press "Save in this browser". Translate PDF
 is the exception: extracted text is sent to MyMemory's servers for
-translation, which is stated on the tool page. There are no accounts, no
-analytics IDs and no advertising markup in this codebase.
+translation, which is stated on the tool page. There are no accounts and no
+analytics IDs. The only advertising-related markup is the AdSense
+account-verification `<meta>` tag in `app/layout.tsx` — there are no ad units
+or ad scripts in this codebase.
 
 ## Honesty notes
 

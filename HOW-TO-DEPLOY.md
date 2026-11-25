@@ -1,11 +1,11 @@
-# How to deploy PageForge on Vercel (from GitHub)
+# How to deploy PDF World on Vercel (from GitHub)
 
 These are the owner's steps. No credentials are stored anywhere in this
 repository, and nothing here needs an API key.
 
 ## Before you start
 
-- The code is in a GitHub repository (for example `Itsx-umer-raja/builtbyumer.tech`
+- The code is in a GitHub repository (for example `Itsx-umer-raja/buildbyumer.tech`
   or whichever repository you use for this site — use the repository you actually
   pushed this project to).
 - You have a free Vercel account (sign up at vercel.com with your GitHub
@@ -19,7 +19,7 @@ repository, and nothing here needs an API key.
    From the project folder:
    ```bash
    git add .
-   git commit -m "Deploy PageForge"
+   git commit -m "Deploy PDF World"
    git push origin main
    ```
    (Use your repository's actual default branch name if it is not `main`.)
@@ -67,9 +67,8 @@ repository, and nothing here needs an API key.
   `NEXT_PUBLIC_SITE_URL`** to that domain (for example
   `https://example.com`, no trailing slash) and redeploy. The sitemap,
   `robots.txt` and homepage structured data all read that one variable, so
-  there is nothing else to edit. Never use the old domain
-  `https://builtbyumer.tech` for this site — it belongs to a different
-  project.
+  there is nothing else to edit. Never use the old site's domain for this
+  site — it belongs to a different project.
 
 ## Troubleshooting
 

@@ -735,13 +735,13 @@ export function PdfATool() {
       const doc = await PDFDocument.load(await fileBytes(files[0]));
       if (title.trim()) doc.setTitle(title.trim());
       if (author.trim()) doc.setAuthor(author.trim());
-      doc.setCreator("PageForge (browser)");
-      doc.setProducer("PageForge PDF/A-style export");
+      doc.setCreator("PDF World (browser)");
+      doc.setProducer("PDF World PDF/A-style export");
       doc.setCreationDate(new Date());
       doc.setModificationDate(new Date());
       const xmp = [
         '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>',
-        '<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="PageForge">',
+        '<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="PDF World">',
         '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">',
         '<rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">',
         "<pdfaid:part>1</pdfaid:part><pdfaid:conformance>B</pdfaid:conformance>",

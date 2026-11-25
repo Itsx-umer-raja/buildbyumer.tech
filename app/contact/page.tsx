@@ -1,8 +1,26 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Contact — PageForge",
-  description: "How to get in touch with PageForge.",
+  title: "Contact PDF World — Report a Bug or Suggest a Tool",
+  description:
+    "Found a bug in a PDF World tool or have an idea for a new one? Tell us what happened and which tool you were using. Please never send documents or passwords.",
+  alternates: { canonical: "/contact" },
+  openGraph: {
+    type: "website",
+    url: "/contact",
+    siteName: "PDF World",
+    title: "Contact PDF World — Report a Bug or Suggest a Tool | PDF World",
+    description:
+      "Found a bug in a PDF World tool or have an idea for a new one? Tell us what happened and which tool you were using. Please never send documents or passwords.",
+    images: [{ url: "/pdf-world-icon-512.png", width: 512, height: 512, alt: "PDF World logo" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Contact PDF World — Report a Bug or Suggest a Tool | PDF World",
+    description:
+      "Found a bug in a PDF World tool or have an idea for a new one? Tell us what happened and which tool you were using. Please never send documents or passwords.",
+    images: ["/pdf-world-icon-512.png"],
+  },
 };
 
 export default function ContactPage() {
@@ -23,6 +41,7 @@ export default function ContactPage() {
             arranged.
           </p>
         </div>
+        <h2 className="pt-2 font-display text-2xl font-bold text-slate-900">How to report a problem</h2>
         <p>
           When reporting a problem, it helps to say which tool you were using, what kind of
           file you tried (for example, a 10-page PDF), and what happened instead of what you

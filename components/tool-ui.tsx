@@ -149,7 +149,7 @@ export function ProcessButton({
       type="button"
       disabled={busy || disabled}
       onClick={onClick}
-      className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-teal-700 px-6 py-3.5 text-base font-semibold text-white shadow-sm transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+      className="btn-animated mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-3.5 text-base font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
     >
       {busy && <Loader2 className="h-5 w-5 animate-spin" />}
       {busy ? (busyLabel ?? "Working…") : label}
@@ -188,7 +188,7 @@ export function ResultCard({
       <button
         type="button"
         onClick={onDownload}
-        className="mt-4 inline-flex items-center gap-2 rounded-full bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
+        className="btn-animated mt-4 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-white"
       >
         <Download className="h-4 w-4" />
         {downloadLabel ?? `Download ${filename}`}

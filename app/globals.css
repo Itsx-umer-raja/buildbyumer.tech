@@ -20,3 +20,194 @@ body {
   color: var(--color-ink);
   font-family: var(--font-body);
 }
+
+/* ------------------------------------------------------------------ */
+/* Motion system: CSS/transform-based depth only — no 3D libraries.    */
+/* ------------------------------------------------------------------ */
+
+/* Scroll reveal (paired with components/reveal.tsx). */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.6s ease,
+    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Animated gradient buttons: shifting gradient + shine sweep + lift. */
+.btn-animated {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background-image: linear-gradient(120deg, #0f766e, #0d9488 45%, #059669 70%, #0f766e);
+  background-size: 220% 220%;
+  background-position: 0% 50%;
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s ease,
+    background-position 0.5s ease;
+}
+.btn-animated:hover:not(:disabled) {
+  background-position: 100% 50%;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -8px rgb(15 118 110 / 0.55);
+}
+.btn-animated:active:not(:disabled) {
+  transform: translateY(0);
+}
+.btn-animated::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgb(255 255 255 / 0.35) 50%,
+    transparent 65%
+  );
+  transform: translateX(-120%);
+  transition: transform 0.6s ease;
+  pointer-events: none;
+}
+.btn-animated:hover:not(:disabled)::after {
+  transform: translateX(120%);
+}
+
+/* Subtle 3D tilt on tool cards (hover only, transform-based). */
+.tilt-card {
+  transform-style: preserve-3d;
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s ease,
+    border-color 0.35s ease;
+}
+.tilt-card:hover {
+  transform: perspective(900px) rotateX(4deg) rotateY(-5deg) translateY(-6px);
+  box-shadow:
+    0 18px 34px -16px rgb(15 118 110 / 0.28),
+    0 4px 10px -4px rgb(20 32 31 / 0.08);
+}
+
+/* Hero: drifting gradient blobs behind the headline. */
+@keyframes blob-drift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(28px, -18px) scale(1.12);
+  }
+}
+.hero-blob {
+  animation: blob-drift 11s ease-in-out infinite;
+  filter: blur(56px);
+  will-change: transform;
+}
+.hero-blob--slow {
+  animation-duration: 15s;
+  animation-direction: reverse;
+}
+
+/* Hero: floating 3D document cards. */
+@keyframes float-3d {
+  0%,
+  100% {
+    transform: perspective(700px) rotateY(-14deg) rotateX(6deg) translateY(0);
+  }
+  50% {
+    transform: perspective(700px) rotateY(-10deg) rotateX(3deg) translateY(-10px);
+  }
+}
+.float-3d {
+  animation: float-3d 6s ease-in-out infinite;
+  will-change: transform;
+}
+.float-3d--slow {
+  animation-duration: 8s;
+  animation-delay: -2.5s;
+}
+
+/* Animated gradient text for headline accents. */
+@keyframes gradient-pan {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+.text-gradient-animated {
+  background-image: linear-gradient(100deg, #0f766e, #059669, #0d9488, #0f766e);
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradient-pan 6s ease infinite;
+}
+
+/* Gentle entrance for hero content. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rise-in {
+  animation: rise-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.rise-in--1 {
+  animation-delay: 0.08s;
+}
+.rise-in--2 {
+  animation-delay: 0.16s;
+}
+.rise-in--3 {
+  animation-delay: 0.24s;
+}
+
+/* Slowly shifting gradient panels (featured banner / privacy panel). */
+@keyframes panel-pan {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+.panel-gradient {
+  background-image: linear-gradient(115deg, #0f766e, #0b4f4a 40%, #065f46 75%, #0f766e);
+  background-size: 240% 240%;
+  animation: panel-pan 14s ease infinite;
+}
+
+/* Respect users who prefer less motion. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

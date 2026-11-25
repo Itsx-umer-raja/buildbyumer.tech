@@ -31,6 +31,13 @@ import {
   type DateFormat,
   type SummaryTone,
 } from "@/lib/resume";
+import {
+  RESUME_FONTS,
+  RESUME_THEMES,
+  TEMPLATE_DEFAULT_FONTS,
+  getResumeFont,
+  getResumeTheme,
+} from "@/lib/resume-fonts";
 import { ResumePreview } from "./resume-preview";
 
 const EMPTY: ResumeData = {
@@ -74,6 +81,8 @@ export function ResumeBuilder() {
   const [data, setData] = useState<ResumeData>(EMPTY);
   const [template, setTemplate] = useState<ResumeTemplateId>("modern");
   const [dateFormat, setDateFormat] = useState<DateFormat>("mon-yyyy");
+  const [fontId, setFontId] = useState<string | null>(null); // null = the template's default font
+  const [themeId, setThemeId] = useState<string>("teal");
   const [photoOn, setPhotoOn] = useState(false);
   const [photo, setPhoto] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState<string | null>(null);
@@ -90,11 +99,26 @@ export function ResumeBuilder() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw) as { data: ResumeData; template: ResumeTemplateId; dateFormat: DateFormat };
+        const parsed = JSON.parse(raw) as {
+          data: ResumeData;
+          template: ResumeTemplateId;
+          dateFormat: DateFormat;
+          fontId?: string | null;
+          themeId?: string;
+        };
         if (parsed?.data) {
           setData(parsed.data);
           if (parsed.template) setTemplate(parsed.template);
           if (parsed.dateFormat) setDateFormat(parsed.dateFormat);
+          // Older saves have no font/theme; they keep the template defaults.
+          if (typeof parsed.fontId === "string" && RESUME_FONTS.some((f) => f.id === parsed.fontId)) {
+            setFontId(parsed.fontId);
+          } else if (parsed.fontId === null) {
+            setFontId(null);
+          }
+          if (typeof parsed.themeId === "string" && RESUME_THEMES.some((t) => t.id === parsed.themeId)) {
+            setThemeId(parsed.themeId);
+          }
           setSavedNote("Loaded the resume saved in this browser.");
         }
       }
@@ -112,7 +136,7 @@ export function ResumeBuilder() {
     try {
       // The photo is deliberately not saved: it can be large, and it is
       // optional. Everything else is stored only in this browser.
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ data, template, dateFormat }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ data, template, dateFormat, fontId, themeId }));
       setSavedNote("Saved in this browser (localStorage). Nothing is sent to a server.");
     } catch {
       setSavedNote("Could not save — this browser's local storage may be full or disabled.");
@@ -137,7 +161,7 @@ export function ResumeBuilder() {
     setDocxError(null);
     setDocxBusy(true);
     try {
-      const blob = await buildResumeDocx(data, dateFormat);
+      const blob = await buildResumeDocx(data, dateFormat, { fontId, themeId, template });
       const name = (data.fullName.trim() || "resume").replace(/\s+/g, "-");
       downloadBlob(blob, `${name}-resume.docx`);
     } catch {
@@ -169,16 +193,17 @@ export function ResumeBuilder() {
         @media print {
           body * { visibility: hidden !important; }
           #resume-print, #resume-print * { visibility: visible !important; }
-          #resume-print { position: absolute !important; left: 0; top: 0; width: 100% !important; max-width: none !important; box-shadow: none !important; padding: 0 !important; }
+          #resume-print { position: absolute !important; left: 0; top: 0; width: 100% !important; max-width: none !important; box-shadow: none !important; padding: 0 !important; print-color-adjust: exact !important; -webkit-print-color-adjust: exact !important; }
         }
       `}</style>
 
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         <p className="text-xs font-semibold uppercase tracking-wider text-teal-700">Resume builder</p>
-        <h1 className="mt-2 font-display text-3xl font-bold text-slate-900 sm:text-4xl">Build a resume that gets read</h1>
+        <h1 className="mt-2 font-display text-3xl font-bold text-slate-900 sm:text-4xl">Build a free resume that gets read</h1>
         <p className="mt-2 max-w-2xl leading-relaxed text-slate-600">
-          Fill in the form and watch the preview update live. Pick one of four original templates, then export
-          as PDF or Word. Your details stay in your browser — nothing is uploaded, and saving uses only this
+          Fill in the form and watch the preview update live. Pick one of four original templates, choose a
+          font — MS Word classics or stylish Canva-style fonts — and a colour theme, then export as PDF or
+          Word. Your details stay in your browser — nothing is uploaded, and saving uses only this
           browser&apos;s local storage.
         </p>
 
@@ -257,6 +282,109 @@ export function ResumeBuilder() {
                     </button>
                   ))}
                 </div>
+              </div>
+              <div>
+                <OptionLabel>Font</OptionLabel>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button
+                    key="template-default"
+                    type="button"
+                    onClick={() => setFontId(null)}
+                    aria-pressed={fontId === null}
+                    className={`rounded-xl border p-3 text-left transition ${
+                      fontId === null
+                        ? "border-teal-700 bg-teal-50 ring-1 ring-teal-700"
+                        : "border-slate-300 bg-white hover:border-teal-600"
+                    }`}
+                  >
+                    <span className="block text-base leading-tight" style={{ fontFamily: getResumeFont(TEMPLATE_DEFAULT_FONTS[template]).family }}>
+                      Aa
+                    </span>
+                    <span className="mt-1 block text-sm font-bold text-slate-900">
+                      Template default — {getResumeFont(TEMPLATE_DEFAULT_FONTS[template]).name}
+                    </span>
+                  </button>
+                </div>
+                <p className="mt-3 text-xs font-semibold text-slate-700">
+                  Classic fonts — as in MS Word
+                </p>
+                <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
+                  These use the fonts installed on your device, just like Word does. We don&apos;t bundle
+                  Microsoft&apos;s fonts — if a font isn&apos;t on your device, the browser falls back to a
+                  similar one.
+                </p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {RESUME_FONTS.filter((f) => f.group === "classic").map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setFontId(f.id)}
+                      aria-pressed={fontId === f.id}
+                      className={`rounded-xl border p-3 text-left transition ${
+                        fontId === f.id
+                          ? "border-teal-700 bg-teal-50 ring-1 ring-teal-700"
+                          : "border-slate-300 bg-white hover:border-teal-600"
+                      }`}
+                    >
+                      <span className="block text-base leading-tight" style={{ fontFamily: f.family }}>
+                        Aa
+                      </span>
+                      <span className="mt-1 block text-sm font-bold text-slate-900">{f.name}</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs font-semibold text-slate-700">Stylish fonts — free, like Canva</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
+                  Free open-licence fonts, loaded with the page. No account, no payment.
+                </p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {RESUME_FONTS.filter((f) => f.group === "stylish").map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setFontId(f.id)}
+                      aria-pressed={fontId === f.id}
+                      className={`rounded-xl border p-3 text-left transition ${
+                        fontId === f.id
+                          ? "border-teal-700 bg-teal-50 ring-1 ring-teal-700"
+                          : "border-slate-300 bg-white hover:border-teal-600"
+                      }`}
+                    >
+                      <span className="block text-base leading-tight" style={{ fontFamily: f.family }}>
+                        Aa
+                      </span>
+                      <span className="mt-1 block text-sm font-bold text-slate-900">
+                        {f.name}
+                        {f.hint ? <span className="ml-1.5 text-xs font-medium text-slate-500">· {f.hint}</span> : null}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <OptionLabel>Colour theme</OptionLabel>
+                <div className="flex flex-wrap gap-2">
+                  {RESUME_THEMES.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setThemeId(t.id)}
+                      aria-pressed={themeId === t.id}
+                      aria-label={`${t.name} theme`}
+                      title={t.name}
+                      style={{ backgroundColor: t.accent }}
+                      className={`h-9 w-9 rounded-full transition ${
+                        themeId === t.id
+                          ? "ring-2 ring-slate-900 ring-offset-2"
+                          : "ring-1 ring-slate-300 hover:scale-110"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-slate-500">
+                  Selected: {getResumeTheme(themeId).name}. The ATS-friendly template stays black so
+                  applicant tracking systems read it reliably.
+                </p>
               </div>
               <div>
                 <OptionLabel>Date format</OptionLabel>
@@ -584,10 +712,19 @@ export function ResumeBuilder() {
           {/* ------------------------------------------------ Preview */}
           <div className="lg:sticky lg:top-20 lg:self-start">
             <p className="no-print mb-3 text-sm font-semibold text-slate-700">
-              Live preview — {TEMPLATES.find((t) => t.id === template)?.name} template
+              Live preview — {TEMPLATES.find((t) => t.id === template)?.name} template ·{" "}
+              {fontId ? getResumeFont(fontId).name : `Template default (${getResumeFont(TEMPLATE_DEFAULT_FONTS[template]).name})`} ·{" "}
+              {getResumeTheme(themeId).name} theme
             </p>
             <div className="rounded-2xl border border-slate-200 bg-slate-100 p-4 sm:p-6">
-              <ResumePreview data={data} template={template} dateFormat={dateFormat} photo={photoOn ? photo : null} />
+              <ResumePreview
+                data={data}
+                template={template}
+                dateFormat={dateFormat}
+                photo={photoOn ? photo : null}
+                fontId={fontId}
+                themeId={themeId}
+              />
             </div>
             <p className="no-print mt-3 text-xs leading-relaxed text-slate-500">
               The preview is what the PDF export prints. For the cleanest result, choose “Save as PDF” in the
