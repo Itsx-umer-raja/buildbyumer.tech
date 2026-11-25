@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Fraunces, Inter } from "next/font/google";
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/logo";
+import { MobileMenu } from "@/components/mobile-menu";
 import { GithubIcon } from "@/components/github-icon";
 import { SITE_URL } from "@/lib/site";
 import "./globals.css";
@@ -45,7 +47,7 @@ export const metadata: Metadata = {
       "Free PDF tools that run entirely in your browser: merge, split, compress, convert and secure PDFs, plus a free resume builder. No sign-up, no uploads.",
     images: ["/pdf-world-icon-512.png"],
   },
-  // AdSense account verification only — no ad units or ad scripts anywhere.
+  // AdSense account verification + ad script. No ad units yet, so no ads display.
   other: {
     "google-adsense-account": "ca-pub-3234707846484197",
   },
@@ -67,6 +69,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${fraunces.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3234707846484197"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
         <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-[#faf9f6]/90 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
             <Link href="/" aria-label="PDF World — home">
@@ -80,6 +88,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               ))}
             </nav>
             <div className="flex items-center gap-2 sm:gap-3">
+              <MobileMenu />
               <a
                 href="https://github.com/Itsx-umer-raja/buildbyumer.tech"
                 target="_blank"

@@ -38,7 +38,7 @@ const RESUME_FONT_VARS = [
 export const metadata: Metadata = {
   title: "Free Resume Builder — Make a Professional Resume Online",
   description:
-    "Build a professional resume free in your browser: ten original templates including an ATS-friendly one, live preview, PDF and Word export. Upload an existing resume to edit it. Nothing is uploaded.",
+    "Build a professional resume free in your browser: fourteen original templates including an ATS-friendly one, live preview, PDF and Word export. Upload an existing resume to edit it. Nothing is uploaded.",
   keywords: ["free resume builder", "free resume builder online", "resume maker", "resume maker online"],
   alternates: { canonical: "/resume" },
   openGraph: {
@@ -47,14 +47,14 @@ export const metadata: Metadata = {
     siteName: "PDF World",
     title: "Free Resume Builder — Make a Professional Resume Online | PDF World",
     description:
-      "Build a professional resume free in your browser: four original templates including an ATS-friendly one, live preview, PDF and Word export. Nothing is uploaded.",
+      "Build a professional resume free in your browser: fourteen original templates including an ATS-friendly one, live preview, PDF and Word export. Nothing is uploaded.",
     images: [{ url: "/pdf-world-icon-512.png", width: 512, height: 512, alt: "PDF World logo" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Free Resume Builder — Make a Professional Resume Online | PDF World",
     description:
-      "Build a professional resume free in your browser: four original templates including an ATS-friendly one, live preview, PDF and Word export. Nothing is uploaded.",
+      "Build a professional resume free in your browser: fourteen original templates including an ATS-friendly one, live preview, PDF and Word export. Nothing is uploaded.",
     images: ["/pdf-world-icon-512.png"],
   },
 };
@@ -70,7 +70,7 @@ export default function ResumePage() {
         operatingSystem: "Web browser",
         offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
         description:
-          "Free resume builder with ten original templates including an ATS-friendly one, live preview, and PDF and Word export. Runs in the browser; nothing is uploaded.",
+          "Free resume builder with fourteen original templates including an ATS-friendly one, live preview, and PDF and Word export. Runs in the browser; nothing is uploaded.",
       },
       {
         "@type": "BreadcrumbList",

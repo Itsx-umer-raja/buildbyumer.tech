@@ -31,14 +31,25 @@ export default function ContactPage() {
         <p>
           Found a bug, or have a suggestion for a tool? We would like to hear about it.
         </p>
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
-          <p className="text-sm font-semibold text-amber-900">Email (placeholder)</p>
-          <p className="mt-1 font-mono text-sm text-amber-900">contact@example.invalid</p>
-          <p className="mt-2 text-sm text-amber-800">
-            This is a placeholder address, not a real mailbox — a real contact email has not
-            been set up for this site yet. Please do not send mail here; it will not be
-            received. A working contact address will replace this placeholder when one is
-            arranged.
+        <div className="rounded-2xl border border-teal-200 bg-teal-50 px-5 py-4">
+          <p className="text-sm font-semibold text-teal-900">Report it on GitHub</p>
+          <p className="mt-1 text-sm text-teal-900">
+            There is no email mailbox for this site yet, so the way to reach us is to open an
+            issue on GitHub — it is public, so please never include documents or passwords.
+          </p>
+          <p className="mt-3">
+            <a
+              href="https://github.com/Itsx-umer-raja/buildbyumer.tech/issues"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-full bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800"
+            >
+              Open an issue on GitHub
+            </a>
+          </p>
+          <p className="mt-2 text-sm text-teal-800">
+            New issue on the buildbyumer.tech repository — you will need a free GitHub account.
+            A working contact email will be added here if one is ever set up.
           </p>
         </div>
         <h2 className="pt-2 font-display text-2xl font-bold text-slate-900">How to report a problem</h2>

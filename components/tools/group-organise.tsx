@@ -186,16 +186,16 @@ export function SplitTool() {
       <FileList files={files} onRemove={remove} />
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <div>
-          <OptionLabel>Split mode</OptionLabel>
-          <select className={selectCls} value={mode} onChange={(e) => setMode(e.target.value as "ranges" | "every")}>
+          <OptionLabel htmlFor="organise-split-mode">Split mode</OptionLabel>
+          <select id="organise-split-mode" className={selectCls} value={mode} onChange={(e) => setMode(e.target.value as "ranges" | "every")}>
             <option value="ranges">By page ranges</option>
             <option value="every">Every page as its own file (ZIP)</option>
           </select>
         </div>
         {mode === "ranges" && (
           <div>
-            <OptionLabel>Page ranges (e.g. 1-3, 5, 8-10)</OptionLabel>
-            <input className={inputCls} value={ranges} onChange={(e) => setRanges(e.target.value)} placeholder="1-3, 5" />
+            <OptionLabel htmlFor="organise-page-ranges-e-g-1-3-5-8-10">Page ranges (e.g. 1-3, 5, 8-10)</OptionLabel>
+            <input id="organise-page-ranges-e-g-1-3-5-8-10" className={inputCls} value={ranges} onChange={(e) => setRanges(e.target.value)} placeholder="1-3, 5" />
           </div>
         )}
       </div>
@@ -296,8 +296,8 @@ export function CompressTool() {
       <Dropzone accept="application/pdf,.pdf" onFiles={add} hint="One PDF file" />
       <FileList files={files} onRemove={remove} />
       <div className="mt-5 max-w-sm">
-        <OptionLabel>Compression level</OptionLabel>
-        <select className={selectCls} value={level} onChange={(e) => setLevel(e.target.value as "light" | "medium" | "strong")}>
+        <OptionLabel htmlFor="organise-compression-level">Compression level</OptionLabel>
+        <select id="organise-compression-level" className={selectCls} value={level} onChange={(e) => setLevel(e.target.value as "light" | "medium" | "strong")}>
           <option value="light">Light — re-save, keeps text selectable (recommended)</option>
           <option value="medium">Medium — rebuild pages as images, good balance</option>
           <option value="strong">Strong — smallest file, lower image quality</option>

@@ -24,6 +24,17 @@ export interface EducationItem {
   end: string;
 }
 
+/** Academic Experience: competitions, moots, research, conferences etc.
+ * (title / organisation / dates / bullets — like a work entry, but academic). */
+export interface AcademicExperienceItem {
+  id: string;
+  title: string;
+  org: string;
+  start: string;
+  end: string;
+  bullets: string; // one achievement per line
+}
+
 export interface ResumeData {
   fullName: string;
   title: string;
@@ -37,6 +48,18 @@ export interface ResumeData {
   education: EducationItem[];
   skills: string; // comma-separated (or one per line)
   languages: string; // comma-separated (or one per line), e.g. "English (native), Spanish (conversational)"
+  /** Per-skill proficiency 0–100, keyed by the skill text as typed. Optional:
+   * older saves have none, and a missing entry falls back to a level parsed
+   * from the skill text itself ("French (fluent)") or a sensible default. */
+  skillLevels?: Record<string, number>;
+  /** Per-language proficiency 0–100, keyed by the language text as typed. */
+  languageLevels?: Record<string, number>;
+  academicExperience?: AcademicExperienceItem[];
+  /** Free-text references (names, roles, contact details). */
+  referencesText?: string;
+  /** When true, the resume shows "References will be provided upon request."
+   * instead of the free text above. */
+  referencesOnRequest?: boolean;
 }
 
 export type ResumeTemplateId =
@@ -49,14 +72,18 @@ export type ResumeTemplateId =
   | "navy-sidebar"
   | "pastel"
   | "bold"
-  | "simple";
+  | "simple"
+  | "umer-classic"
+  | "executive-dark"
+  | "creative-portfolio"
+  | "academic";
 export type DateFormat = "mon-yyyy" | "mm-yyyy" | "yyyy" | "mon-dd-yyyy";
 
 export const TEMPLATES: { id: ResumeTemplateId; name: string; description: string }[] = [
   {
     id: "modern",
     name: "Modern",
-    description: "Teal accent bar, bold name, skills as pills. Good for tech, design and startups.",
+    description: "Teal accent bar, bold name, skills listed one per line. Good for tech, design and startups.",
   },
   {
     id: "classic",
@@ -103,14 +130,42 @@ export const TEMPLATES: { id: ResumeTemplateId; name: string; description: strin
     name: "Simple Professional",
     description: "One clean column, centred header, ruled headings, right-aligned dates. The safest choice for portals and applicant tracking systems.",
   },
+  {
+    id: "umer-classic",
+    name: "Umer Classic",
+    description: "Black-and-white serif CV: rectangular photo top-left, black title badge, two-column layout with a divider, skill and language bars, black year badges, Academic Experience and References. Good for law, academia and formal applications.",
+  },
+  {
+    id: "executive-dark",
+    name: "Executive Dark Header",
+    description: "Dark header band with a photo, white name and contact details, then a single clean column with skill and language bars. Good for senior, management and consulting roles.",
+  },
+  {
+    id: "creative-portfolio",
+    name: "Creative Portfolio",
+    description: "Colourful tinted sidebar with a round photo, contact, skill and language bars; a bright main column for experience and projects. Good for design, marketing, media and teaching roles.",
+  },
+  {
+    id: "academic",
+    name: "Academic Research",
+    description: "Centred serif header, Education and Academic Experience promoted above work experience, plain one-per-line skills and languages. Good for researchers, lecturers, students and grant applications.",
+  },
 ];
 
-/** Templates whose .docx export / preview deliberately omit the photo. */
-export const PHOTOLESS_TEMPLATES: ResumeTemplateId[] = ["ats", "simple", "two-column"];
+/** Templates whose .docx export / preview deliberately omit the photo.
+ * Only the ATS template: a photo would hurt parser reliability. Every other
+ * template supports a photo (off by default; an empty placeholder shows in
+ * the preview until one is uploaded). */
+export const PHOTOLESS_TEMPLATES: ResumeTemplateId[] = ["ats"];
 /** Templates that render the photo in a sidebar (docx + preview). */
-export const SIDEBAR_TEMPLATES: ResumeTemplateId[] = ["fresh-grad", "navy-sidebar"];
+export const SIDEBAR_TEMPLATES: ResumeTemplateId[] = ["fresh-grad", "navy-sidebar", "creative-portfolio"];
 /** Templates that lay the .docx out as a two-column table. */
-export const TABLE_TEMPLATES: ResumeTemplateId[] = ["two-column", "fresh-grad", "navy-sidebar"];
+export const TABLE_TEMPLATES: ResumeTemplateId[] = ["two-column", "fresh-grad", "navy-sidebar", "umer-classic", "creative-portfolio"];
+/** Templates that show proficiency bars next to skills and languages. */
+export const BAR_TEMPLATES: ResumeTemplateId[] = ["umer-classic", "executive-dark", "creative-portfolio"];
+/** Templates that ignore the colour theme and always render black-and-white
+ * (by design: ATS for parser reliability, Umer Classic for its serif CV look). */
+export const MONOCHROME_TEMPLATES: ResumeTemplateId[] = ["ats", "umer-classic"];
 
 export const DATE_FORMATS: { id: DateFormat; label: string; example: string }[] = [
   { id: "mon-yyyy", label: "Jan 2025 (month + year)", example: "Jan 2022 – Mar 2025" },
@@ -215,6 +270,59 @@ export function bulletList(bullets: string): string[] {
   return bullets.split("\n").map((b) => b.trim().replace(/^[•\-*]\s*/, "")).filter(Boolean);
 }
 
+/** Proficiency implied by a label in brackets, e.g. "French (fluent)",
+ * "English (native)", "Spanish (80%)", "Excel (4/5)". Returns null when the
+ * label carries no level information. */
+export function parseLevelFromLabel(label: string): number | null {
+  const pct = label.match(/\(\s*(\d{1,3})\s*%\s*\)/);
+  if (pct) return Math.max(0, Math.min(100, Number(pct[1])));
+  const frac = label.match(/\(\s*(\d+(?:\.\d+)?)\s*\/\s*5\s*\)/);
+  if (frac) return Math.max(0, Math.min(100, Math.round((Number(frac[1]) / 5) * 100)));
+  const word = label.match(/\(\s*([A-Za-z]+)\s*\)/);
+  if (!word) return null;
+  const w = word[1].toLowerCase();
+  if (w === "native" || w === "bilingual" || w === "expert") return 95;
+  if (w === "fluent" || w === "advanced" || w === "professional") return 90;
+  if (w === "intermediate" || w === "conversational") return 70;
+  if (w === "basic" || w === "beginner" || w === "elementary") return 50;
+  return null;
+}
+
+function clampLevel(n: number): number {
+  return Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : 80;
+}
+
+/** A skill with its proficiency level (0–100). The level comes from the
+ * per-skill slider first, then from a level in the skill text itself, then
+ * from the default (80). */
+export function skillEntries(data: ResumeData): { name: string; level: number }[] {
+  return skillList(data.skills).map((name) => {
+    const stored = data.skillLevels?.[name] ?? data.skillLevels?.[name.toLowerCase()];
+    return { name, level: stored !== undefined ? clampLevel(stored) : (parseLevelFromLabel(name) ?? 80) };
+  });
+}
+
+export function languageEntries(data: ResumeData): { name: string; level: number }[] {
+  return languageList(data.languages).map((name) => {
+    const stored = data.languageLevels?.[name] ?? data.languageLevels?.[name.toLowerCase()];
+    return { name, level: stored !== undefined ? clampLevel(stored) : (parseLevelFromLabel(name) ?? 85) };
+  });
+}
+
+/** The display name of a language without its bracketed level, e.g.
+ * "English (native)" → "English". Used where a bar already shows the level. */
+export function stripLevelLabel(label: string): string {
+  return label.replace(/\s*\([^)]*\)\s*$/, "").trim() || label;
+}
+
+/** Text bar for the .docx export, e.g. "████████░░" for 80%. Word has no
+ * HTML/CSS bars, so the level is drawn with block characters next to the
+ * skill name — the text stays selectable and searchable. */
+export function levelBarText(level: number, width = 10): string {
+  const filled = Math.round((clampLevel(level) / 100) * width);
+  return "█".repeat(filled) + "░".repeat(Math.max(0, width - filled));
+}
+
 /** B9: an experience item counts if it has a role, company, dates or bullets — not just role/company. */
 export function hasExperienceContent(e: ExperienceItem): boolean {
   return Boolean(e.role.trim() || e.company.trim() || e.start.trim() || e.end.trim() || e.bullets.trim());
@@ -222,6 +330,16 @@ export function hasExperienceContent(e: ExperienceItem): boolean {
 
 export function hasEducationContent(e: EducationItem): boolean {
   return Boolean(e.degree.trim() || e.school.trim() || e.start.trim() || e.end.trim());
+}
+
+/** An academic-experience item counts if it has a title, organisation, dates or bullets. */
+export function hasAcademicExperienceContent(e: AcademicExperienceItem): boolean {
+  return Boolean(e.title.trim() || e.org.trim() || e.start.trim() || e.end.trim() || e.bullets.trim());
+}
+
+/** The references section has content when the toggle is on or free text was entered. */
+export function hasReferencesContent(data: ResumeData): boolean {
+  return Boolean(data.referencesOnRequest || data.referencesText?.trim());
 }
 
 /** B15: true when the resume has no content at all (placeholders don't count). */
@@ -238,7 +356,9 @@ export function isResumeEmpty(data: ResumeData): boolean {
     data.skills.trim() ||
     data.languages.trim() ||
     data.experience.some(hasExperienceContent) ||
-    data.education.some(hasEducationContent)
+    data.education.some(hasEducationContent) ||
+    (data.academicExperience ?? []).some(hasAcademicExperienceContent) ||
+    hasReferencesContent(data)
   );
 }
 
@@ -311,6 +431,28 @@ export const SAMPLE_RESUME: ResumeData = {
   ],
   skills: "Customer support, Zendesk, Live chat, Conflict resolution, CRM, Clear writing",
   languages: "English (native), Spanish (conversational)",
+  skillLevels: {
+    "Customer support": 90,
+    Zendesk: 85,
+    "Live chat": 90,
+    "Conflict resolution": 80,
+    CRM: 75,
+    "Clear writing": 85,
+  },
+  languageLevels: { "English (native)": 95, "Spanish (conversational)": 70 },
+  academicExperience: [
+    {
+      id: "acad-1",
+      title: "Student Support Workshop",
+      org: "University of Texas at Austin",
+      start: "2019",
+      end: "2019",
+      bullets:
+        "Ran a workshop on handling difficult customer conversations for 40 fellow students\nWrote the handout the student support team still uses for new volunteers",
+    },
+  ],
+  referencesText: "",
+  referencesOnRequest: true,
 };
 
 // ---------------------------------------------------------------------------
@@ -384,8 +526,12 @@ export function buildSummary(data: ResumeData, profession: string, tone: Summary
 //
 // ATS rule (B1, B2): the ATS template is always plain black Arial in the
 // export, whatever font or theme the user picked — the preview does the same.
-// Photo (B6): embedded where the template supports a photo; ATS, Simple and
-// Two-Column deliberately have none.
+// Umer Classic is likewise black-and-white by design. Photo (B6): embedded
+// where the template supports a photo; only the ATS template has none, so
+// applicants keep parser reliability there.
+// Skills and languages export one per line as bullets (never pills, never a
+// single joined line); bar templates add a text bar after each item so the
+// level survives in Word, where there are no CSS bars.
 // ---------------------------------------------------------------------------
 
 export interface ResumePhoto {
@@ -434,10 +580,11 @@ export async function buildResumeDocx(
   } = await import("docx");
   const template = opts.template ?? "modern";
   const isAts = template === "ats";
+  const isMono = MONOCHROME_TEMPLATES.includes(template);
   const font = opts.fontId ? getResumeFont(opts.fontId) : getResumeFont(TEMPLATE_DEFAULT_FONTS[template]);
   const theme = getResumeTheme(opts.themeId);
-  const accent = (isAts ? "000000" : theme.accent.replace("#", ""));
-  const accentDark = (isAts ? "000000" : theme.accentDark.replace("#", ""));
+  const accent = (isMono ? "000000" : theme.accent.replace("#", ""));
+  const accentDark = (isMono ? "000000" : theme.accentDark.replace("#", ""));
   const soft = theme.soft.replace("#", "");
   // B2: ATS always uses Arial, in the export as in the preview. Display fonts
   // (Bebas Neue, Dancing Script) go on headings only; the body uses the
@@ -445,10 +592,11 @@ export async function buildResumeDocx(
   const defaultFont = getResumeFont(TEMPLATE_DEFAULT_FONTS[template]);
   const headFont = isAts ? "Arial" : font.docxName;
   const bodyFont = isAts ? "Arial" : font.headingOnly ? defaultFont.docxName : font.docxName;
-  const muted = isAts ? "000000" : "475569";
-  const bodyColor = template === "pastel" ? "3F3A36" : isAts ? "000000" : "1F2937";
-  const centered = template === "classic" || template === "simple";
+  const muted = isMono ? "000000" : "475569";
+  const bodyColor = template === "pastel" ? "3F3A36" : isMono ? "000000" : "1F2937";
+  const centered = template === "classic" || template === "simple" || template === "academic";
   const headerAlign = centered ? AlignmentType.CENTER : AlignmentType.LEFT;
+  const showBars = BAR_TEMPLATES.includes(template);
 
   type P = InstanceType<typeof Paragraph>;
   const noBorders = {
@@ -465,7 +613,7 @@ export async function buildResumeDocx(
 
   const headingColor =
     template === "minimal" ? "64748B" : template === "pastel" ? accentDark : template === "classic" ? "111827" : accent;
-  const heading = (text: string, o: { color?: string; size?: number; align?: typeof AlignmentType.LEFT; borderBottom?: string; borderTop?: string; caps?: boolean } = {}): P => {
+  const heading = (text: string, o: { color?: string; size?: number; align?: (typeof AlignmentType)[keyof typeof AlignmentType]; borderBottom?: string; borderTop?: string; caps?: boolean } = {}): P => {
     const border: Record<string, { style: (typeof BorderStyle)["SINGLE"]; size: number; space: number; color: string }> = {};
     if (o.borderBottom !== undefined) border.bottom = { style: BorderStyle.SINGLE, size: 12, space: 4, color: o.borderBottom };
     if (o.borderTop !== undefined) border.top = { style: BorderStyle.SINGLE, size: 18, space: 4, color: o.borderTop };
@@ -548,7 +696,7 @@ export async function buildResumeDocx(
     return out;
   };
 
-  const educationParas = (side = false): P[] => {
+  const educationParas = (side = false, badge = false): P[] => {
     const items = data.education.filter(hasEducationContent);
     if (!items.length) return [];
     const out: P[] = [side ? sideHeading("Education") : heading("Education", { borderBottom: template === "bold" ? accent : undefined, borderTop: template === "bold" ? accent : undefined })];
@@ -562,28 +710,97 @@ export async function buildResumeDocx(
         }),
       );
       if (line && range) {
-        out.push(new Paragraph({ children: [run(range, { italics: true, size: 20, color: side ? "E5E7EB" : muted })] }));
+        if (badge) {
+          // Black year badge, as on the Umer Classic CV: white text on black.
+          out.push(
+            new Paragraph({
+              spacing: { after: 40 },
+              children: [
+                new TextRun({
+                  text: range,
+                  bold: true,
+                  size: 20,
+                  color: "FFFFFF",
+                  font: bodyFont,
+                  shading: { type: ShadingType.CLEAR, fill: "000000" },
+                }),
+              ],
+            }),
+          );
+        } else {
+          out.push(new Paragraph({ children: [run(range, { italics: true, size: 20, color: side ? "E5E7EB" : muted })] }));
+        }
       }
     }
     return out;
   };
 
-  const skillsParas = (side = false): P[] => {
-    const skills = skillList(data.skills);
-    if (!skills.length) return [];
+  const academicExperienceParas = (side = false): P[] => {
+    const items = (data.academicExperience ?? []).filter(hasAcademicExperienceContent);
+    if (!items.length) return [];
+    const out: P[] = [side ? sideHeading("Academic Experience") : heading("Academic Experience", { borderBottom: template === "bold" ? accent : undefined, borderTop: template === "bold" ? accent : undefined })];
+    for (const e of items) {
+      const titleLine = [e.title.trim(), e.org.trim()].filter(Boolean).join(" — ");
+      const range = formatRange(e.start, e.end, false, fmt);
+      out.push(
+        new Paragraph({
+          spacing: { before: 120 },
+          keepNext: true,
+          children: [run(titleLine || range || "Academic Experience", { bold: true, size: 24, color: side ? "FFFFFF" : bodyColor })],
+        }),
+      );
+      if (titleLine && range) {
+        out.push(new Paragraph({ children: [run(range, { italics: true, size: 20, color: side ? "E5E7EB" : muted })] }));
+      }
+      for (const b of bulletList(e.bullets)) {
+        out.push(new Paragraph({ bullet: { level: 0 }, children: [run(b, { size: 22, color: side ? "FFFFFF" : bodyColor })] }));
+      }
+    }
+    return out;
+  };
+
+  const referencesParas = (centeredRef = false, label = "References"): P[] => {
+    if (!hasReferencesContent(data)) return [];
+    const text = data.referencesOnRequest ? "References will be provided upon request." : (data.referencesText ?? "").trim();
+    if (!text) return [];
     return [
-      side ? sideHeading("Skills") : heading("Skills", { borderBottom: template === "bold" ? accent : undefined, borderTop: template === "bold" ? accent : undefined }),
-      new Paragraph({ children: [run(skills.join("  ·  "), { size: 22, color: side ? "FFFFFF" : bodyColor })] }),
+      heading(label, { align: centeredRef ? AlignmentType.CENTER : undefined }),
+      new Paragraph({
+        alignment: centeredRef ? AlignmentType.CENTER : AlignmentType.LEFT,
+        children: [run(text, { size: 22 })],
+      }),
     ];
   };
 
+  // Skills and languages are always one item per line (bulleted), in the
+  // export as in the preview — never pills, never one joined line. Bar
+  // templates add a text bar after each item so the level survives in Word.
+  const skillsParas = (side = false): P[] => {
+    const entries = skillEntries(data);
+    if (!entries.length) return [];
+    const out: P[] = [side ? sideHeading("Skills") : heading("Skills", { borderBottom: template === "bold" ? accent : undefined, borderTop: template === "bold" ? accent : undefined })];
+    for (const { name, level } of entries) {
+      const children: InstanceType<typeof TextRun>[] = [run(name, { size: 22, color: side ? "FFFFFF" : bodyColor })];
+      if (showBars) {
+        children.push(run(`  ${levelBarText(level)}`, { size: 22, color: side ? "FFFFFF" : accent }));
+      }
+      out.push(new Paragraph({ bullet: { level: 0 }, children }));
+    }
+    return out;
+  };
+
   const languagesParas = (side = false): P[] => {
-    const langs = languageList(data.languages);
-    if (!langs.length) return [];
-    return [
-      side ? sideHeading("Languages") : heading("Languages", { borderBottom: template === "bold" ? accent : undefined, borderTop: template === "bold" ? accent : undefined }),
-      new Paragraph({ children: [run(langs.join("  ·  "), { size: 22, color: side ? "FFFFFF" : bodyColor })] }),
-    ];
+    const entries = languageEntries(data);
+    if (!entries.length) return [];
+    const out: P[] = [side ? sideHeading("Languages") : heading("Languages", { borderBottom: template === "bold" ? accent : undefined, borderTop: template === "bold" ? accent : undefined })];
+    for (const { name, level } of entries) {
+      const children: InstanceType<typeof TextRun>[] = [run(name, { size: 22, color: side ? "FFFFFF" : bodyColor })];
+      if (showBars) {
+        children.push(run(`  ${levelBarText(level)}`, { size: 22, color: side ? "FFFFFF" : accent }));
+      }
+      out.push(new Paragraph({ bullet: { level: 0 }, children }));
+    }
+    return out;
   };
 
   // --- header -------------------------------------------------------------
@@ -596,7 +813,7 @@ export async function buildResumeDocx(
     }
     if (data.fullName.trim()) {
       const nameSize =
-        template === "bold" ? 72 : template === "classic" ? 56 : template === "pastel" ? 52 : template === "minimal" ? 48 : template === "ats" ? 48 : 44;
+        template === "bold" ? 72 : template === "classic" ? 56 : template === "umer-classic" ? 56 : template === "academic" ? 52 : template === "pastel" ? 52 : template === "minimal" ? 48 : template === "ats" ? 48 : 44;
       out.push(
         new Paragraph({
           alignment: headerAlign,
@@ -657,6 +874,22 @@ export async function buildResumeDocx(
     return out;
   };
 
+  // Creative Portfolio sidebar: dark text on the theme's soft tint (not a
+  // solid dark cell), with skill/language bars.
+  const creativeSidebarParas = (): P[] => {
+    const out: P[] = [];
+    const pp = photoPara(110, AlignmentType.LEFT);
+    if (pp) out.push(pp);
+    if (contact) {
+      out.push(heading("Contact"));
+      for (const part of [data.email, data.phone, data.location, data.website, data.linkedin].filter((x) => x.trim())) {
+        out.push(new Paragraph({ spacing: { after: 40 }, children: [run(part, { size: 20 })] }));
+      }
+    }
+    out.push(...skillsParas(), ...languagesParas());
+    return out;
+  };
+
   const mainParas = (): P[] => {
     const out: P[] = [];
     if (data.fullName.trim()) {
@@ -676,16 +909,246 @@ export async function buildResumeDocx(
     return out;
   };
 
+  // Executive Dark header: one shaded band holding the photo, white name,
+  // title and contact line.
+  const executiveHeaderTable = (): InstanceType<typeof Table> => {
+    const cellChildren: P[] = [];
+    const pp = photoPara(90, AlignmentType.LEFT);
+    if (pp) cellChildren.push(pp);
+    if (data.fullName.trim()) {
+      cellChildren.push(
+        new Paragraph({
+          children: [new TextRun({ text: data.fullName, bold: true, size: 52, font: headFont, color: "FFFFFF" })],
+        }),
+      );
+    }
+    if (data.title.trim()) {
+      cellChildren.push(new Paragraph({ children: [run(data.title, { size: 26, color: "FFFFFF" })] }));
+    }
+    if (contact) {
+      cellChildren.push(new Paragraph({ spacing: { after: 60 }, children: [run(contact, { size: 20, color: "E5E7EB" })] }));
+    }
+    return new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: noBorders,
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              shading: { type: ShadingType.CLEAR, fill: accentDark },
+              margins: { top: 200, bottom: 200, left: 250, right: 250 },
+              children: cellChildren.length ? cellChildren : [new Paragraph({ children: [run("Resume", { size: 24, color: "FFFFFF" })] })],
+            }),
+          ],
+        }),
+      ],
+    });
+  };
+
+  // Umer Classic header: photo cell + name cell with the black title badge.
+  const umerHeaderTable = (): InstanceType<typeof Table> => {
+    const nameCell: P[] = [];
+    if (data.fullName.trim()) {
+      nameCell.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: data.fullName,
+              bold: true,
+              size: 56,
+              font: headFont,
+              color: "000000",
+              allCaps: true,
+              characterSpacing: 60,
+            }),
+          ],
+        }),
+      );
+    }
+    if (data.title.trim()) {
+      nameCell.push(
+        new Paragraph({
+          spacing: { before: 120 },
+          children: [
+            new TextRun({
+              text: `  ${data.title}  `,
+              bold: true,
+              size: 26,
+              color: "FFFFFF",
+              font: bodyFont,
+              allCaps: true,
+              characterSpacing: 40,
+              shading: { type: ShadingType.CLEAR, fill: "000000" },
+            }),
+          ],
+        }),
+      );
+    }
+    const pp = photoPara(110, AlignmentType.LEFT);
+    return new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: noBorders,
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              width: { size: 1700, type: WidthType.DXA },
+              margins: { top: 100, bottom: 100, left: 100, right: 200 },
+              children: pp ? [pp] : [new Paragraph({ children: [run("", { size: 22 })] })],
+            }),
+            new TableCell({
+              width: { size: 7660, type: WidthType.DXA },
+              margins: { top: 200, bottom: 100, left: 200, right: 100 },
+              children: nameCell.length ? nameCell : [new Paragraph({ children: [run("Resume", { size: 24 })] })],
+            }),
+          ],
+        }),
+      ],
+    });
+  };
+
+  // Umer Classic Academic Experience: entries split across two columns with
+  // a vertical divider (the table's inside border), each with a black badge.
+  const umerAcademicTable = (): InstanceType<typeof Table> | null => {
+    const items = (data.academicExperience ?? []).filter(hasAcademicExperienceContent);
+    if (!items.length) return null;
+    const cellParas = (cellItems: AcademicExperienceItem[]): P[] => {
+      const out: P[] = [];
+      for (const e of cellItems) {
+        const range = formatRange(e.start, e.end, false, fmt);
+        out.push(
+          new Paragraph({
+            spacing: { before: 120 },
+            keepNext: true,
+            children: [run(e.title.trim() || "Academic Experience", { bold: true, size: 24 })],
+          }),
+        );
+        if (e.org.trim()) {
+          out.push(new Paragraph({ children: [run(e.org, { size: 22 })] }));
+        }
+        if (range) {
+          out.push(
+            new Paragraph({
+              spacing: { after: 40 },
+              children: [
+                new TextRun({
+                  text: range,
+                  bold: true,
+                  size: 20,
+                  color: "FFFFFF",
+                  font: bodyFont,
+                  shading: { type: ShadingType.CLEAR, fill: "000000" },
+                }),
+              ],
+            }),
+          );
+        }
+        for (const b of bulletList(e.bullets)) {
+          out.push(new Paragraph({ bullet: { level: 0 }, children: [run(b, { size: 22 })] }));
+        }
+      }
+      return out;
+    };
+    const half = Math.ceil(items.length / 2);
+    return new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: {
+        ...noBorders,
+        insideVertical: { style: BorderStyle.SINGLE, size: 6, space: 0, color: "000000" },
+      },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              width: { size: 4680, type: WidthType.DXA },
+              margins: { top: 100, bottom: 100, left: 100, right: 200 },
+              children: cellParas(items.slice(0, half)),
+            }),
+            new TableCell({
+              width: { size: 4680, type: WidthType.DXA },
+              margins: { top: 100, bottom: 100, left: 200, right: 100 },
+              children: cellParas(items.slice(half)),
+            }),
+          ],
+        }),
+      ],
+    });
+  };
+
   // --- assemble per template (B3: the layout is template-specific) --------
   let children: Array<P | InstanceType<typeof Table>>;
-  if (TABLE_TEMPLATES.includes(template)) {
-    const left: P[] = template === "two-column" ? [...skillsParas(), ...educationParas(), ...languagesParas()] : sidebarParas();
+  if (template === "umer-classic") {
+    // Left column: About Me, Skills (bars), Languages (bars). Right column:
+    // Contact, Education (black year badges). Then Academic Experience in
+    // two columns, then centred References — mirroring the source CV.
+    const left: P[] = [];
+    if (data.summary.trim()) {
+      left.push(heading("About Me"), new Paragraph({ children: [run(data.summary, { size: 22 })] }));
+    }
+    left.push(...skillsParas(), ...languagesParas());
+    const right: P[] = [];
+    if (contact) {
+      right.push(heading("Contact"));
+      for (const part of [data.email, data.phone, data.location, data.website, data.linkedin].filter((x) => x.trim())) {
+        right.push(new Paragraph({ spacing: { after: 40 }, children: [run(part, { size: 22 })] }));
+      }
+    }
+    right.push(...educationParas(false, true));
+    const bodyTable = new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: {
+        ...noBorders,
+        insideVertical: { style: BorderStyle.SINGLE, size: 6, space: 0, color: "000000" },
+      },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              width: { size: 3800, type: WidthType.DXA },
+              margins: { top: 100, bottom: 100, left: 100, right: 200 },
+              children: left.length ? left : [new Paragraph({ children: [run("", { size: 22 })] })],
+            }),
+            new TableCell({
+              width: { size: 5560, type: WidthType.DXA },
+              margins: { top: 100, bottom: 100, left: 200, right: 100 },
+              children: right.length ? right : [new Paragraph({ children: [run("", { size: 22 })] })],
+            }),
+          ],
+        }),
+      ],
+    });
+    children = [umerHeaderTable(), bodyTable];
+    // Work experience (if any) goes between the two-column body and the
+    // academic section; the CV itself has none, but the builder supports it.
+    children.push(...experienceParas());
+    const acadTable = umerAcademicTable();
+    if (acadTable) {
+      children.push(
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 240, after: 80 },
+          keepNext: true,
+          children: [new TextRun({ text: "ACADEMIC EXPERIENCE", bold: true, size: 30, color: "000000", font: headFont, characterSpacing: 40 })],
+        }),
+        acadTable,
+      );
+    }
+    children.push(...referencesParas(true, "Reference"));
+  } else if (TABLE_TEMPLATES.includes(template)) {
+    const left: P[] =
+      template === "two-column"
+        ? [...skillsParas(), ...educationParas(), ...languagesParas()]
+        : template === "creative-portfolio"
+          ? creativeSidebarParas()
+          : sidebarParas();
     const right: P[] =
       template === "two-column"
-        ? [...headerParas(), ...summaryParas(), ...experienceParas()]
+        ? [...headerParas(), ...summaryParas(), ...experienceParas(), ...academicExperienceParas()]
         : template === "fresh-grad"
-          ? [...mainParas(), ...summaryParas(), ...educationParas(), ...experienceParas()]
-          : [...mainParas(), ...summaryParas(), ...experienceParas(), ...educationParas()];
+          ? [...mainParas(), ...summaryParas(), ...educationParas(), ...experienceParas(), ...academicExperienceParas()]
+          : template === "creative-portfolio"
+            ? [...mainParas(), ...summaryParas(), ...experienceParas(), ...educationParas(), ...academicExperienceParas()]
+            : [...mainParas(), ...summaryParas(), ...experienceParas(), ...educationParas(), ...academicExperienceParas()];
     const table = new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       borders: noBorders,
@@ -694,7 +1157,12 @@ export async function buildResumeDocx(
           children: [
             new TableCell({
               width: { size: template === "two-column" ? 2800 : 3200, type: WidthType.DXA },
-              shading: template === "two-column" ? undefined : { type: ShadingType.CLEAR, fill: sidebarFill },
+              shading:
+                template === "two-column"
+                  ? undefined
+                  : template === "creative-portfolio"
+                    ? { type: ShadingType.CLEAR, fill: soft }
+                    : { type: ShadingType.CLEAR, fill: sidebarFill },
               margins: { top: 100, bottom: 100, left: 150, right: 150 },
               children: left,
             }),
@@ -708,15 +1176,40 @@ export async function buildResumeDocx(
       ],
     });
     // Two-column keeps the full-width header above the table.
-    children = template === "two-column" ? [...headerParas(), table] : [table];
+    children = template === "two-column" ? [...headerParas(), table, ...referencesParas()] : [table, ...referencesParas()];
+  } else if (template === "executive-dark") {
+    children = [
+      executiveHeaderTable(),
+      ...summaryParas(),
+      ...experienceParas(),
+      ...academicExperienceParas(),
+      ...educationParas(),
+      ...skillsParas(),
+      ...languagesParas(),
+      ...referencesParas(),
+    ];
+  } else if (template === "academic") {
+    // Education and Academic Experience come before work experience.
+    children = [
+      ...headerParas(),
+      ...summaryParas(),
+      ...educationParas(),
+      ...academicExperienceParas(),
+      ...experienceParas(),
+      ...skillsParas(),
+      ...languagesParas(),
+      ...referencesParas(),
+    ];
   } else {
     children = [
       ...headerParas(),
       ...summaryParas(),
       ...experienceParas(),
+      ...academicExperienceParas(),
       ...educationParas(),
       ...skillsParas(),
       ...languagesParas(),
+      ...referencesParas(),
     ];
   }
 
@@ -751,6 +1244,8 @@ const SECTION_HEADERS: { re: RegExp; key: string }[] = [
   { re: /^education|academic(\s+background)?|qualifications$/i, key: "education" },
   { re: /^(technical\s+)?skills|core\s+skills|competencies|key\s+skills$/i, key: "skills" },
   { re: /^languages$/i, key: "languages" },
+  { re: /^academic\s+experience|research(\s+experience)?|competitions?|moot\s+court|conferences?$/i, key: "academic" },
+  { re: /^references?$/i, key: "references" },
   { re: /^certifications?|certificates|awards$/i, key: "other" },
 ];
 
@@ -818,6 +1313,11 @@ export function parseResumeText(text: string): ResumeParseResult {
     education: [],
     skills: "",
     languages: "",
+    skillLevels: {},
+    languageLevels: {},
+    academicExperience: [],
+    referencesText: "",
+    referencesOnRequest: false,
   };
   const found: string[] = [];
   const warnings: string[] = [];
@@ -1039,6 +1539,78 @@ export function parseResumeText(text: string): ResumeParseResult {
     const langs = splitList(langText);
     data.languages = data.languages ? `${data.languages}, ${langs.join(", ")}` : langs.join(", ");
     if (!found.includes("languages")) found.push("languages");
+  }
+
+  // --- academic experience ------------------------------------------------
+  // Same shape as work experience (title / organisation / dates / bullets),
+  // parsed with the same date-range logic, kept in its own section.
+  const acadLines = section("academic");
+  let currentAcad: AcademicExperienceItem | null = null;
+  const flushAcad = () => {
+    if (currentAcad && hasAcademicExperienceContent(currentAcad)) data.academicExperience!.push(currentAcad);
+    currentAcad = null;
+  };
+  const newAcad = (): AcademicExperienceItem => ({
+    id: `acad-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    title: "", org: "", start: "", end: "", bullets: "",
+  });
+  for (const line of acadLines) {
+    const dateMatch = line.match(DATE_RANGE_RE);
+    const isBullet = /^[•\-*▸▪◦]\s+/.test(line);
+    const clean = line.replace(/^[•\-*▸▪◦]\s+/, "");
+    if (isBullet) {
+      if (!currentAcad) currentAcad = newAcad();
+      currentAcad.bullets = currentAcad.bullets ? `${currentAcad.bullets}\n${clean}` : clean;
+      continue;
+    }
+    if (dateMatch) {
+      const before = line.slice(0, dateMatch.index ?? 0).trim().replace(/[,|–—-]+$/, "").trim();
+      if (before && (!currentAcad || currentAcad.title || currentAcad.org)) {
+        if (currentAcad && (currentAcad.title || currentAcad.org || currentAcad.bullets)) flushAcad();
+        currentAcad = newAcad();
+        const { role, company } = splitRoleCompany(before);
+        currentAcad.title = role;
+        currentAcad.org = company;
+      } else if (!currentAcad) {
+        currentAcad = newAcad();
+        if (before) {
+          const { role, company } = splitRoleCompany(before);
+          currentAcad.title = role;
+          currentAcad.org = company;
+        }
+      }
+      if (currentAcad) {
+        currentAcad.start = dateMatch[1];
+        const endRaw = dateMatch[2];
+        currentAcad.end = /^(present|current|now)$/i.test(endRaw) ? "" : endRaw;
+      }
+      continue;
+    }
+    if (!currentAcad) {
+      currentAcad = newAcad();
+      const { role, company } = splitRoleCompany(clean);
+      currentAcad.title = role;
+      currentAcad.org = company;
+      continue;
+    }
+    if (!currentAcad.org && !currentAcad.bullets && clean.length <= 70 && !/[.!?]$/.test(clean)) {
+      currentAcad.org = clean;
+      continue;
+    }
+    currentAcad.bullets = currentAcad.bullets ? `${currentAcad.bullets}\n${clean}` : clean;
+  }
+  flushAcad();
+  if (data.academicExperience!.length) found.push(`${data.academicExperience!.length} academic experience ${data.academicExperience!.length > 1 ? "entries" : "entry"}`);
+
+  // --- references ---------------------------------------------------------
+  const refText = section("references").join(" ").replace(/\s+/g, " ").trim();
+  if (refText) {
+    if (/upon request/i.test(refText)) {
+      data.referencesOnRequest = true;
+    } else {
+      data.referencesText = refText;
+    }
+    found.push("references");
   }
 
   if (!data.fullName) warnings.push("No name was found — add your name at the top of the form.");

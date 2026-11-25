@@ -20,7 +20,7 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
   "merge-pdf": {
   "slug": "merge-pdf",
   "title": "Merge PDF",
-  "category": "Organise",
+  "category": "Organize",
   "primaryKeyword": "merge pdf",
   "secondaryKeywords": [
     "merge pdf free",
@@ -33,7 +33,7 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
   "h2s": [
     "How to use Merge PDF",
     "Frequently asked questions",
-    "More organise tools"
+    "More organize tools"
   ],
   "faqs": [
     {
@@ -53,7 +53,7 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
   "split-pdf": {
   "slug": "split-pdf",
   "title": "Split PDF",
-  "category": "Organise",
+  "category": "Organize",
   "primaryKeyword": "split pdf",
   "secondaryKeywords": [
     "split pdf free",
@@ -66,7 +66,7 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
   "h2s": [
     "How to use Split PDF",
     "Frequently asked questions",
-    "More organise tools"
+    "More organize tools"
   ],
   "faqs": [
     {
@@ -86,7 +86,7 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
   "compress-pdf": {
   "slug": "compress-pdf",
   "title": "Compress PDF",
-  "category": "Organise",
+  "category": "Organize",
   "primaryKeyword": "compress pdf",
   "secondaryKeywords": [
     "compress pdf free",
@@ -99,7 +99,7 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
   "h2s": [
     "How to use Compress PDF",
     "Frequently asked questions",
-    "More organise tools"
+    "More organize tools"
   ],
   "faqs": [
     {
@@ -218,7 +218,7 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
   "organize-pdf": {
   "slug": "organize-pdf",
   "title": "Organize PDF",
-  "category": "Organise",
+  "category": "Organize",
   "primaryKeyword": "organize pdf",
   "secondaryKeywords": [
     "organize pdf free",
@@ -226,12 +226,12 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
     "organize pdf online free"
   ],
   "seoTitle": "Organize PDF Online Free | PDF World",
-  "description": "See every page as a thumbnail, drag them into a new order, and delete the pages you do not need. Free, no sign-up. Your files never leave your browser.",
+  "description": "See every page as a thumbnail, move pages into a new order with the arrow buttons, and delete the pages you do not need. Free, no sign-up. Your files never leave your browser.",
   "h1": "Organize PDF — free online",
   "h2s": [
     "How to use Organize PDF",
     "Frequently asked questions",
-    "More organise tools"
+    "More organize tools"
   ],
   "faqs": [
     {
@@ -409,7 +409,7 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
     },
     {
       "q": "What are the limits of PDF to Word?",
-      "a": "Approximation: this extracts the PDF's text and rebuilds it as a Word document. Layout reflows, and images, tables and fonts are not preserved."
+      "a": "Preserves text, font sizes, colours and headings; tables are rebuilt where columns can be detected and images are kept where possible. Bold/italic from PDFs are not preserved, and exact page layout may shift. Password-protected PDFs need their password entered on the tool page."
     }
   ]
 },
@@ -423,9 +423,9 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
     "pdf to powerpoint online",
     "pdf to powerpoint online free"
   ],
-  "seoTitle": "PDF to Powerpoint Online Free | PDF World",
+  "seoTitle": "PDF to PowerPoint Online Free | PDF World",
   "description": "Turn a PDF into a PowerPoint (.pptx) deck, one slide per page. Free, no sign-up. Your files never leave your browser.",
-  "h1": "PDF to Powerpoint — free online",
+  "h1": "PDF to PowerPoint — free online",
   "h2s": [
     "How to use PDF to PowerPoint",
     "Frequently asked questions",
@@ -442,7 +442,7 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
     },
     {
       "q": "What are the limits of PDF to PowerPoint?",
-      "a": "Approximation: this extracts the PDF's text and rebuilds it as slides. Layout reflows, and images, charts and designs are not preserved."
+      "a": "Preserves text, font sizes and colours, with each line on its own text box; tables and images are kept where possible. Bold/italic from PDFs are not preserved, and exact page layout may shift. Password-protected PDFs need their password entered on the tool page."
     }
   ]
 },
@@ -475,7 +475,7 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
     },
     {
       "q": "What are the limits of PDF to Excel?",
-      "a": "Approximation: tables are guessed from text spacing, so columns may need checking. Layout and images are not preserved."
+      "a": "Columns are detected from text positions, not guessed from spaces — check them before relying on them. Rows the PDF stores as a single text run stay in one cell. Password-protected PDFs need their password entered on the tool page."
     }
   ]
 },
@@ -508,7 +508,7 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
     },
     {
       "q": "What are the limits of Word to PDF?",
-      "a": "Approximation: text is extracted and re-rendered, so the original Word layout, images and tables are not preserved."
+      "a": "Preserves text, fonts, sizes, colours, bold/italic, headings, lists, tables, links and images where possible; exact Word pagination may shift. Urdu, Arabic, Chinese and other non-Latin text uses a downloaded Unicode font in the basic PDF — if that download fails, use “Print / Save as PDF”, which uses your browser's fonts."
     }
   ]
 },
@@ -522,9 +522,9 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
     "powerpoint to pdf online",
     "powerpoint to pdf online free"
   ],
-  "seoTitle": "Powerpoint to PDF Online Free | PDF World",
+  "seoTitle": "PowerPoint to PDF Online Free | PDF World",
   "description": "Turn a PowerPoint (.pptx) presentation into a PDF, one slide per page. Free, no sign-up. Your files never leave your browser.",
-  "h1": "Powerpoint to PDF — free online",
+  "h1": "PowerPoint to PDF — free online",
   "h2s": [
     "How to use PowerPoint to PDF",
     "Frequently asked questions",
@@ -541,7 +541,7 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
     },
     {
       "q": "What are the limits of PowerPoint to PDF?",
-      "a": "Approximation: slide text is extracted and re-rendered. Slide designs, images, charts and animations are not preserved."
+      "a": "Slides stay in presentation order and text keeps its size, colour and bold/italic; slide designs, charts and animations are not preserved, and exact slide layout may shift. Urdu, Arabic, Chinese and other non-Latin text uses a downloaded Unicode font in the basic PDF — if that download fails, use “Print / Save as PDF”."
     }
   ]
 },
@@ -574,7 +574,7 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
     },
     {
       "q": "What are the limits of Excel to PDF?",
-      "a": "Approximation: sheet data is rendered as simple tables. Long cell text is truncated, and charts and formulas appear as their values."
+      "a": "Sheet data is rendered as tables with content-aware column widths; long cells wrap instead of being cut off, and dates are shown as YYYY-MM-DD. Formulas appear as their values, charts are not preserved, and cell fonts/colours from the spreadsheet are not preserved."
     }
   ]
 },
@@ -673,7 +673,7 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
     },
     {
       "q": "What are the limits of PDF to Markdown?",
-      "a": "Text extraction plus reflow, not a perfect conversion: headings are guessed, and images, tables and layout are not preserved."
+      "a": "Headings are detected from font size, not guessed from the words; tables are rebuilt where columns can be detected. Exact layout and images are not preserved. Password-protected PDFs need their password entered on the tool page."
     }
   ]
 },
@@ -852,9 +852,9 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
     "pdf to pdfa online",
     "pdf to pdfa online free"
   ],
-  "seoTitle": "PDF to Pdfa Online Free | PDF World",
+  "seoTitle": "PDF to PDF/A Online Free | PDF World",
   "description": "Add PDF/A-style archival metadata to a PDF, including an XMP metadata packet and document… Free, no sign-up. Your files never leave your browser.",
-  "h1": "PDF to Pdfa — free online",
+  "h1": "PDF to PDF/A — free online",
   "h2s": [
     "How to use PDF to PDF/A",
     "Frequently asked questions",
@@ -904,7 +904,7 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
     },
     {
       "q": "What are the limits of HTML to PDF?",
-      "a": "Basic styling only: external images, fonts and scripts are not loaded. The styled PDF comes from your browser's print dialog (“Save as PDF”)."
+      "a": "The downloaded PDF preserves headings, bold/italic, colours, sizes, lists and tables from your HTML; exact browser layout may shift. The styled PDF comes from your browser's print dialog (“Save as PDF”). External images, fonts and scripts are not loaded."
     }
   ]
 },
@@ -990,7 +990,7 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
   "h2s": [
     "How to use AI Summarizer",
     "Frequently asked questions",
-    "More ai tools"
+    "More AI tools"
   ],
   "faqs": [
     {
@@ -1023,12 +1023,12 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
   "h2s": [
     "How to use Translate PDF",
     "Frequently asked questions",
-    "More ai tools"
+    "More AI tools"
   ],
   "faqs": [
     {
       "q": "Is Translate PDF free?",
-      "a": "Yes. Translate PDF on PDF World is free to use, with no account, no sign-up and no limit on how many tasks you run."
+      "a": "Yes. Translate PDF on PDF World is free to use, with no account and no sign-up. Translation itself is limited by the free MyMemory service's shared quota: about 5,000 characters per document and per day, so very long documents may stop part-way through."
     },
     {
       "q": "Are my files uploaded when I use Translate PDF?",
@@ -1037,6 +1037,336 @@ export const TOOL_SEO: Record<string, ToolSeo> = {
     {
       "q": "What are the limits of Translate PDF?",
       "a": "Free MyMemory service, no key needed: about 5,000 characters per document and per day on the shared anonymous quota, in chunks of ~450 characters. Machine translation is approximate — check important wording. The extracted text is sent to MyMemory's servers for translation; the rest of the work stays in your browser."
+    }
+  ]
+},
+  "gpa-calculator": {
+  "slug": "gpa-calculator",
+  "title": "GPA Calculator",
+  "category": "Calculators",
+  "primaryKeyword": "gpa calculator",
+  "secondaryKeywords": [
+    "gpa calculator free",
+    "gpa calculator online",
+    "calculate gpa"
+  ],
+  "seoTitle": "GPA Calculator Online Free | PDF World",
+  "description": "Work out your GPA on the 4.0 scale from your course grades and credit hours. Credit-weighted, with a worked example. Free, no sign-up. Runs entirely in your browser — nothing you type leaves your device.",
+  "h1": "GPA Calculator — free online",
+  "h2s": [
+    "How to use GPA Calculator",
+    "Frequently asked questions",
+    "More calculators tools"
+  ],
+  "faqs": [
+    {
+      "q": "Is GPA Calculator free?",
+      "a": "Yes. GPA Calculator on PDF World is free to use, with no account, no sign-up and no limit on how many tasks you run."
+    },
+    {
+      "q": "Are my numbers uploaded when I use GPA Calculator?",
+      "a": "No. GPA Calculator runs entirely in your browser, so the numbers you type never leave your device and nothing is stored afterwards."
+    },
+    {
+      "q": "What are the limits of GPA Calculator?",
+      "a": "Uses the standard US 4.0 grade-point table (A+ and A both count as 4.0). Schools use different tables — check yours if the exact value matters."
+    }
+  ]
+},
+  "cgpa-calculator": {
+  "slug": "cgpa-calculator",
+  "title": "CGPA Calculator",
+  "category": "Calculators",
+  "primaryKeyword": "cgpa calculator",
+  "secondaryKeywords": [
+    "cgpa calculator free",
+    "cgpa calculator online",
+    "calculate cgpa"
+  ],
+  "seoTitle": "CGPA Calculator Online Free | PDF World",
+  "description": "Work out your CGPA from your semester GPAs, weighted by each semester's credits. Works on the 4.0 and 10.0 scales. Free, no sign-up. Runs entirely in your browser — nothing you type leaves your device.",
+  "h1": "CGPA Calculator — free online",
+  "h2s": [
+    "How to use CGPA Calculator",
+    "Frequently asked questions",
+    "More calculators tools"
+  ],
+  "faqs": [
+    {
+      "q": "Is CGPA Calculator free?",
+      "a": "Yes. CGPA Calculator on PDF World is free to use, with no account, no sign-up and no limit on how many tasks you run."
+    },
+    {
+      "q": "Are my numbers uploaded when I use CGPA Calculator?",
+      "a": "No. CGPA Calculator runs entirely in your browser, so the numbers you type never leave your device and nothing is stored afterwards."
+    },
+    {
+      "q": "What are the limits of CGPA Calculator?",
+      "a": "Weights each semester by its credits, so a heavier semester counts more. Enter the GPA your university awarded for each semester."
+    }
+  ]
+},
+  "percentage-calculator": {
+  "slug": "percentage-calculator",
+  "title": "Percentage Calculator",
+  "category": "Calculators",
+  "primaryKeyword": "percentage calculator",
+  "secondaryKeywords": [
+    "percentage calculator free",
+    "percentage calculator online",
+    "marks percentage calculator"
+  ],
+  "seoTitle": "Percentage Calculator Online Free | PDF World",
+  "description": "Turn marks into a percentage, find X% of a number, or find what percentage one number is of another. Free, no sign-up. Runs entirely in your browser — nothing you type leaves your device.",
+  "h1": "Percentage Calculator — free online",
+  "h2s": [
+    "How to use Percentage Calculator",
+    "Frequently asked questions",
+    "More calculators tools"
+  ],
+  "faqs": [
+    {
+      "q": "Is Percentage Calculator free?",
+      "a": "Yes. Percentage Calculator on PDF World is free to use, with no account, no sign-up and no limit on how many tasks you run."
+    },
+    {
+      "q": "Are my numbers uploaded when I use Percentage Calculator?",
+      "a": "No. Percentage Calculator runs entirely in your browser, so the numbers you type never leave your device and nothing is stored afterwards."
+    },
+    {
+      "q": "What are the limits of Percentage Calculator?",
+      "a": "For marks, the obtained marks cannot be more than the total marks. Results are rounded to two decimal places."
+    }
+  ]
+},
+  "grade-calculator": {
+  "slug": "grade-calculator",
+  "title": "Grade Calculator",
+  "category": "Calculators",
+  "primaryKeyword": "grade calculator",
+  "secondaryKeywords": [
+    "grade calculator free",
+    "grade calculator online",
+    "percentage to grade"
+  ],
+  "seoTitle": "Grade Calculator Online Free | PDF World",
+  "description": "Enter a percentage and see the letter grade and grade points on the standard US +/− scale, with the full grade table. Free, no sign-up. Runs entirely in your browser — nothing you type leaves your device.",
+  "h1": "Grade Calculator — free online",
+  "h2s": [
+    "How to use Grade Calculator",
+    "Frequently asked questions",
+    "More calculators tools"
+  ],
+  "faqs": [
+    {
+      "q": "Is Grade Calculator free?",
+      "a": "Yes. Grade Calculator on PDF World is free to use, with no account, no sign-up and no limit on how many tasks you run."
+    },
+    {
+      "q": "Are my numbers uploaded when I use Grade Calculator?",
+      "a": "No. Grade Calculator runs entirely in your browser, so the numbers you type never leave your device and nothing is stored afterwards."
+    },
+    {
+      "q": "What are the limits of Grade Calculator?",
+      "a": "Uses the standard US +/− scale (A+ 97–100 down to F below 60). Grading scales differ by school — check yours if the boundary matters."
+    }
+  ]
+},
+  "cgpa-to-percentage": {
+  "slug": "cgpa-to-percentage",
+  "title": "CGPA to Percentage",
+  "category": "Calculators",
+  "primaryKeyword": "cgpa to percentage",
+  "secondaryKeywords": [
+    "cgpa to percentage free",
+    "cgpa to percentage online",
+    "convert cgpa to percentage"
+  ],
+  "seoTitle": "CGPA to Percentage Online Free | PDF World",
+  "description": "Convert a CGPA on the 10-point scale into a percentage, with the widely used ×9.5 formula or the direct ×10 conversion. Free, no sign-up. Runs entirely in your browser — nothing you type leaves your device.",
+  "h1": "CGPA to Percentage — free online",
+  "h2s": [
+    "How to use CGPA to Percentage",
+    "Frequently asked questions",
+    "More calculators tools"
+  ],
+  "faqs": [
+    {
+      "q": "Is CGPA to Percentage free?",
+      "a": "Yes. CGPA to Percentage on PDF World is free to use, with no account, no sign-up and no limit on how many tasks you run."
+    },
+    {
+      "q": "Are my numbers uploaded when I use CGPA to Percentage?",
+      "a": "No. CGPA to Percentage runs entirely in your browser, so the numbers you type never leave your device and nothing is stored afterwards."
+    },
+    {
+      "q": "What are the limits of CGPA to Percentage?",
+      "a": "The ×9.5 formula is the widely used Indian-university convention; ×10 is the direct scale conversion. Universities differ — use the formula your university publishes when it matters."
+    }
+  ]
+},
+  "percentage-to-gpa": {
+  "slug": "percentage-to-gpa",
+  "title": "Percentage to GPA",
+  "category": "Calculators",
+  "primaryKeyword": "percentage to gpa",
+  "secondaryKeywords": [
+    "percentage to gpa free",
+    "percentage to gpa online",
+    "convert percentage to gpa"
+  ],
+  "seoTitle": "Percentage to GPA Online Free | PDF World",
+  "description": "Convert a percentage into a GPA on the 4.0 or 10.0 scale. A quick, honest approximation — schools convert differently. Free, no sign-up. Runs entirely in your browser — nothing you type leaves your device.",
+  "h1": "Percentage to GPA — free online",
+  "h2s": [
+    "How to use Percentage to GPA",
+    "Frequently asked questions",
+    "More calculators tools"
+  ],
+  "faqs": [
+    {
+      "q": "Is Percentage to GPA free?",
+      "a": "Yes. Percentage to GPA on PDF World is free to use, with no account, no sign-up and no limit on how many tasks you run."
+    },
+    {
+      "q": "Are my numbers uploaded when I use Percentage to GPA?",
+      "a": "No. Percentage to GPA runs entirely in your browser, so the numbers you type never leave your device and nothing is stored afterwards."
+    },
+    {
+      "q": "What are the limits of Percentage to GPA?",
+      "a": "An approximation: percentage ÷ 100 × 4 on the 4.0 scale, percentage ÷ 10 on the 10-point scale. Schools convert percentages to GPA in different ways."
+    }
+  ]
+},
+  "final-grade-calculator": {
+  "slug": "final-grade-calculator",
+  "title": "Final Grade Calculator",
+  "category": "Calculators",
+  "primaryKeyword": "final grade calculator",
+  "secondaryKeywords": [
+    "final grade calculator free",
+    "final grade calculator online",
+    "what do i need on my final"
+  ],
+  "seoTitle": "Final Grade Calculator Online Free | PDF World",
+  "description": "Find out what score you need on your final exam to finish with the grade you want, given your current grade and the exam's weight. Free, no sign-up. Runs entirely in your browser — nothing you type leaves your device.",
+  "h1": "Final Grade Calculator — free online",
+  "h2s": [
+    "How to use Final Grade Calculator",
+    "Frequently asked questions",
+    "More calculators tools"
+  ],
+  "faqs": [
+    {
+      "q": "Is Final Grade Calculator free?",
+      "a": "Yes. Final Grade Calculator on PDF World is free to use, with no account, no sign-up and no limit on how many tasks you run."
+    },
+    {
+      "q": "Are my numbers uploaded when I use Final Grade Calculator?",
+      "a": "No. Final Grade Calculator runs entirely in your browser, so the numbers you type never leave your device and nothing is stored afterwards."
+    },
+    {
+      "q": "What are the limits of Final Grade Calculator?",
+      "a": "If the answer is over 100%, the target grade is not reachable with this exam alone. The exam weight must be between 1% and 99%."
+    }
+  ]
+},
+  "sgpa-calculator": {
+  "slug": "sgpa-calculator",
+  "title": "SGPA Calculator",
+  "category": "Calculators",
+  "primaryKeyword": "sgpa calculator",
+  "secondaryKeywords": [
+    "sgpa calculator free",
+    "sgpa calculator online",
+    "semester gpa calculator"
+  ],
+  "seoTitle": "SGPA Calculator Online Free | PDF World",
+  "description": "Work out your SGPA for one semester on the 10-point scale (O, A+, A, B+, B, C, P, F), credit-weighted by subject. Free, no sign-up. Runs entirely in your browser — nothing you type leaves your device.",
+  "h1": "SGPA Calculator — free online",
+  "h2s": [
+    "How to use SGPA Calculator",
+    "Frequently asked questions",
+    "More calculators tools"
+  ],
+  "faqs": [
+    {
+      "q": "Is SGPA Calculator free?",
+      "a": "Yes. SGPA Calculator on PDF World is free to use, with no account, no sign-up and no limit on how many tasks you run."
+    },
+    {
+      "q": "Are my numbers uploaded when I use SGPA Calculator?",
+      "a": "No. SGPA Calculator runs entirely in your browser, so the numbers you type never leave your device and nothing is stored afterwards."
+    },
+    {
+      "q": "What are the limits of SGPA Calculator?",
+      "a": "Uses the 10-point scale used in India and Pakistan (O = 10, A+ = 9, A = 8, B+ = 7, B = 6, C = 5, P = 4, F = 0)."
+    }
+  ]
+},
+  "weighted-grade-calculator": {
+  "slug": "weighted-grade-calculator",
+  "title": "Weighted Grade Calculator",
+  "category": "Calculators",
+  "primaryKeyword": "weighted grade calculator",
+  "secondaryKeywords": [
+    "weighted grade calculator free",
+    "weighted grade calculator online",
+    "weighted average calculator"
+  ],
+  "seoTitle": "Weighted Grade Calculator Online Free | PDF World",
+  "description": "Combine homework, quizzes and exams into one weighted grade. Enter each part's score and weight — the weights must total 100%. Free, no sign-up. Runs entirely in your browser — nothing you type leaves your device.",
+  "h1": "Weighted Grade Calculator — free online",
+  "h2s": [
+    "How to use Weighted Grade Calculator",
+    "Frequently asked questions",
+    "More calculators tools"
+  ],
+  "faqs": [
+    {
+      "q": "Is Weighted Grade Calculator free?",
+      "a": "Yes. Weighted Grade Calculator on PDF World is free to use, with no account, no sign-up and no limit on how many tasks you run."
+    },
+    {
+      "q": "Are my numbers uploaded when I use Weighted Grade Calculator?",
+      "a": "No. Weighted Grade Calculator runs entirely in your browser, so the numbers you type never leave your device and nothing is stored afterwards."
+    },
+    {
+      "q": "What are the limits of Weighted Grade Calculator?",
+      "a": "Weights must add up to exactly 100% — the tool tells you the current total if they do not. Scores must be between 0 and 100."
+    }
+  ]
+},
+  "gpa-to-percentage": {
+  "slug": "gpa-to-percentage",
+  "title": "GPA to Percentage",
+  "category": "Calculators",
+  "primaryKeyword": "gpa to percentage",
+  "secondaryKeywords": [
+    "gpa to percentage free",
+    "gpa to percentage online",
+    "convert gpa to percentage"
+  ],
+  "seoTitle": "GPA to Percentage Online Free | PDF World",
+  "description": "Convert a GPA into a percentage on the 4.0 or 10.0 scale. A quick, honest approximation — schools convert differently. Free, no sign-up. Runs entirely in your browser — nothing you type leaves your device.",
+  "h1": "GPA to Percentage — free online",
+  "h2s": [
+    "How to use GPA to Percentage",
+    "Frequently asked questions",
+    "More calculators tools"
+  ],
+  "faqs": [
+    {
+      "q": "Is GPA to Percentage free?",
+      "a": "Yes. GPA to Percentage on PDF World is free to use, with no account, no sign-up and no limit on how many tasks you run."
+    },
+    {
+      "q": "Are my numbers uploaded when I use GPA to Percentage?",
+      "a": "No. GPA to Percentage runs entirely in your browser, so the numbers you type never leave your device and nothing is stored afterwards."
+    },
+    {
+      "q": "What are the limits of GPA to Percentage?",
+      "a": "An approximation: GPA ÷ 4 × 100 on the 4.0 scale, GPA × 10 on the 10-point scale. Schools convert GPA to percentage in different ways."
     }
   ]
 },

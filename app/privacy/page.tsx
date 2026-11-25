@@ -49,12 +49,14 @@ export default function PrivacyPage() {
         </p>
         <h2 className="font-display text-2xl font-bold text-slate-900">No tracking of your documents</h2>
         <p>
-          <strong>No analytics or tracking of your documents.</strong> This site does not run
-          advertising or analytics code that inspects your files, and it does not embed
-          third-party trackers in the tools. The site carries a Google AdSense account
-          verification tag only; no ad units or ad scripts are loaded. Apart from loading the
-          site itself and the two exceptions above (Translate and OCR), the tools make no
-          network requests with your files.
+          <strong>No ads are shown on this site yet.</strong> The site loads the
+          Google AdSense script and carries an AdSense account verification tag, so
+          Google may set cookies as described in Google&apos;s own privacy policy; no
+          ad units are placed yet, so no advertisements display. It does not run
+          analytics code that inspects your files, and it does not embed
+          third-party trackers in the tools. Apart from loading the site itself, the
+          AdSense script, and the two exceptions above (Translate and OCR), the tools
+          make no network requests with your files.
         </p>
         <h2 className="font-display text-2xl font-bold text-slate-900">Passwords</h2>
         <p>
@@ -65,9 +67,10 @@ export default function PrivacyPage() {
         </p>
         <h2 className="font-display text-2xl font-bold text-slate-900">Contact</h2>
         <p>
-          <strong>Contact.</strong> If you email us using the address on the contact page,
-          your message is handled like any email: we will see the address you send from and
-          the contents of your message, and we will only use them to reply to you.
+          <strong>Contact.</strong> There is no email address for this site yet. To report a
+          problem or suggest a tool, please open an issue on the project&apos;s GitHub
+          repository (linked from the contact page). Anything you post there is public,
+          so never include documents or passwords.
         </p>
         <h2 className="font-display text-2xl font-bold text-slate-900">Changes</h2>
         <p>

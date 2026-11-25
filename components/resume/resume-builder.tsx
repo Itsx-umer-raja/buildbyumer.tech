@@ -17,6 +17,8 @@ import {
   ImagePlus,
   Upload,
   Languages,
+  BookOpen,
+  Quote,
 } from "lucide-react";
 import { inputCls, selectCls, OptionLabel } from "@/components/tool-ui";
 import { downloadBlob } from "@/lib/pdf-utils";
@@ -30,6 +32,8 @@ import {
   buildResumeDocx,
   sanitizeDocxFilename,
   parseUploadedResume,
+  skillEntries,
+  languageEntries,
   type ResumeData,
   type ResumeTemplateId,
   type DateFormat,
@@ -58,6 +62,11 @@ const EMPTY: ResumeData = {
   education: [{ id: "edu-1", degree: "", school: "", start: "", end: "" }],
   skills: "",
   languages: "",
+  skillLevels: {},
+  languageLevels: {},
+  academicExperience: [],
+  referencesText: "",
+  referencesOnRequest: false,
 };
 
 function uid(prefix: string) {
@@ -93,7 +102,6 @@ export function ResumeBuilder() {
   const [photo, setPhoto] = useState<string | null>(null);
   const [photoSize, setPhotoSize] = useState<{ width: number; height: number } | null>(null);
   const [savedNote, setSavedNote] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
   const [docxBusy, setDocxBusy] = useState(false);
   const [docxError, setDocxError] = useState<string | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
@@ -106,6 +114,8 @@ export function ResumeBuilder() {
   const uploadInputRef = useRef<HTMLInputElement>(null);
 
   // Load a saved resume from this browser only, on first render.
+  // The form renders immediately (server-side too) so the page is usable
+  // without JavaScript; the saved copy is applied on top once it loads.
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -119,8 +129,18 @@ export function ResumeBuilder() {
           photoOn?: boolean;
         };
         if (parsed?.data) {
-          // Older saves have no languages field; fill it in.
-          setData({ ...EMPTY, ...parsed.data, languages: parsed.data.languages ?? "" });
+          // Older saves have no languages / skill-level / academic-experience
+          // / references fields; the EMPTY defaults fill them in.
+          setData({
+            ...EMPTY,
+            ...parsed.data,
+            languages: parsed.data.languages ?? "",
+            skillLevels: parsed.data.skillLevels ?? {},
+            languageLevels: parsed.data.languageLevels ?? {},
+            academicExperience: parsed.data.academicExperience ?? [],
+            referencesText: parsed.data.referencesText ?? "",
+            referencesOnRequest: parsed.data.referencesOnRequest ?? false,
+          });
           if (parsed.template) setTemplate(parsed.template);
           if (parsed.dateFormat) setDateFormat(parsed.dateFormat);
           if (typeof parsed.photoOn === "boolean") setPhotoOn(parsed.photoOn);
@@ -139,11 +159,42 @@ export function ResumeBuilder() {
     } catch {
       // Corrupt saved data is ignored; the blank form stays usable.
     }
-    setLoaded(true);
   }, []);
 
   const set = useCallback(<K extends keyof ResumeData>(key: K, value: ResumeData[K]) => {
     setData((d) => ({ ...d, [key]: value }));
+  }, []);
+
+  // Skills / languages: keep the per-item levels in step with the list text —
+  // levels for skills that were deleted are dropped.
+  const setSkills = useCallback((text: string) => {
+    setData((d) => {
+      const kept: Record<string, number> = {};
+      const names = new Set(text.split(/[,\n;]+/).map((x) => x.trim()).filter(Boolean));
+      for (const [k, v] of Object.entries(d.skillLevels ?? {})) {
+        if (names.has(k) || [...names].some((n) => n.toLowerCase() === k.toLowerCase())) kept[k] = v;
+      }
+      return { ...d, skills: text, skillLevels: kept };
+    });
+  }, []);
+
+  const setLanguages = useCallback((text: string) => {
+    setData((d) => {
+      const kept: Record<string, number> = {};
+      const names = new Set(text.split(/[,\n;]+/).map((x) => x.trim()).filter(Boolean));
+      for (const [k, v] of Object.entries(d.languageLevels ?? {})) {
+        if (names.has(k) || [...names].some((n) => n.toLowerCase() === k.toLowerCase())) kept[k] = v;
+      }
+      return { ...d, languages: text, languageLevels: kept };
+    });
+  }, []);
+
+  const setSkillLevel = useCallback((name: string, level: number) => {
+    setData((d) => ({ ...d, skillLevels: { ...(d.skillLevels ?? {}), [name]: level } }));
+  }, []);
+
+  const setLanguageLevel = useCallback((name: string, level: number) => {
+    setData((d) => ({ ...d, languageLevels: { ...(d.languageLevels ?? {}), [name]: level } }));
   }, []);
 
   const save = () => {
@@ -253,8 +304,6 @@ export function ResumeBuilder() {
     reader.readAsDataURL(file);
   };
 
-  if (!loaded) return null;
-
   return (
     <div>
       <style>{`
@@ -273,7 +322,7 @@ export function ResumeBuilder() {
         <p className="text-xs font-semibold uppercase tracking-wider text-teal-700">Resume builder</p>
         <h1 className="mt-2 font-display text-3xl font-bold text-slate-900 sm:text-4xl">Build a free resume that gets read</h1>
         <p className="mt-2 max-w-2xl leading-relaxed text-slate-600">
-          Fill in the form and watch the preview update live. Pick one of ten original templates, choose a
+          Fill in the form and watch the preview update live. Pick one of fourteen original templates, choose a
           font — MS Word classics or stylish Canva-style fonts — and a colour theme, then export as PDF or
           Word. Already have a resume? Upload it as PDF or Word and we&apos;ll fill in the form for you to
           edit. Your details stay in your browser — nothing is uploaded, and saving uses only this
@@ -494,8 +543,8 @@ export function ResumeBuilder() {
                 </p>
               </div>
               <div>
-                <OptionLabel>Date format</OptionLabel>
-                <select className={selectCls} value={dateFormat} onChange={(e) => setDateFormat(e.target.value as DateFormat)}>
+                <OptionLabel htmlFor="resume-date-format">Date format</OptionLabel>
+                <select id="resume-date-format" className={selectCls} value={dateFormat} onChange={(e) => setDateFormat(e.target.value as DateFormat)}>
                   {DATE_FORMATS.map((f) => (
                     <option key={f.id} value={f.id}>
                       {f.label} — e.g. {f.example}
@@ -555,9 +604,10 @@ export function ResumeBuilder() {
                     applicant tracking systems read plain text best. Switch to another template to show it.
                   </p>
                 )}
-                {photoOn && (template === "simple" || template === "two-column") && (
+                {photoOn && template !== "ats" && (
                   <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                    This template has no photo by design, so your photo is hidden here and in its Word export.
+                    Your photo appears in this template&apos;s preview and Word export. Until you choose a
+                    photo, the preview shows an empty placeholder box — no photo is ever added for you.
                   </p>
                 )}
               </div>
@@ -567,32 +617,32 @@ export function ResumeBuilder() {
             <Section icon={<User className="h-5 w-5" />} title="Personal information">
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <OptionLabel>Full name</OptionLabel>
-                  <input className={inputCls} value={data.fullName} onChange={(e) => set("fullName", e.target.value)} placeholder="Alex Morgan" />
+                  <OptionLabel htmlFor="resume-full-name">Full name</OptionLabel>
+                  <input id="resume-full-name" className={inputCls} value={data.fullName} onChange={(e) => set("fullName", e.target.value)} placeholder="Alex Morgan" />
                 </div>
                 <div>
-                  <OptionLabel>Job title</OptionLabel>
-                  <input className={inputCls} value={data.title} onChange={(e) => set("title", e.target.value)} placeholder="Customer Support Specialist" />
+                  <OptionLabel htmlFor="resume-job-title">Job title</OptionLabel>
+                  <input id="resume-job-title" className={inputCls} value={data.title} onChange={(e) => set("title", e.target.value)} placeholder="Customer Support Specialist" />
                 </div>
                 <div>
-                  <OptionLabel>Email</OptionLabel>
-                  <input className={inputCls} type="email" value={data.email} onChange={(e) => set("email", e.target.value)} placeholder="you@example.com" />
+                  <OptionLabel htmlFor="resume-email">Email</OptionLabel>
+                  <input id="resume-email" className={inputCls} type="email" value={data.email} onChange={(e) => set("email", e.target.value)} placeholder="you@example.com" />
                 </div>
                 <div>
-                  <OptionLabel>Phone</OptionLabel>
-                  <input className={inputCls} value={data.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+1 (555) 010-2030" />
+                  <OptionLabel htmlFor="resume-phone">Phone</OptionLabel>
+                  <input id="resume-phone" className={inputCls} value={data.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+1 (555) 010-2030" />
                 </div>
                 <div>
-                  <OptionLabel>Location</OptionLabel>
-                  <input className={inputCls} value={data.location} onChange={(e) => set("location", e.target.value)} placeholder="City, Country" />
+                  <OptionLabel htmlFor="resume-location">Location</OptionLabel>
+                  <input id="resume-location" className={inputCls} value={data.location} onChange={(e) => set("location", e.target.value)} placeholder="City, Country" />
                 </div>
                 <div>
-                  <OptionLabel>Website / portfolio (optional)</OptionLabel>
-                  <input className={inputCls} value={data.website} onChange={(e) => set("website", e.target.value)} placeholder="yourname.com" />
+                  <OptionLabel htmlFor="resume-website-portfolio-optional">Website / portfolio (optional)</OptionLabel>
+                  <input id="resume-website-portfolio-optional" className={inputCls} value={data.website} onChange={(e) => set("website", e.target.value)} placeholder="yourname.com" />
                 </div>
                 <div className="sm:col-span-2">
-                  <OptionLabel>LinkedIn (optional)</OptionLabel>
-                  <input className={inputCls} value={data.linkedin} onChange={(e) => set("linkedin", e.target.value)} placeholder="linkedin.com/in/yourname" />
+                  <OptionLabel htmlFor="resume-linkedin-optional">LinkedIn (optional)</OptionLabel>
+                  <input id="resume-linkedin-optional" className={inputCls} value={data.linkedin} onChange={(e) => set("linkedin", e.target.value)} placeholder="linkedin.com/in/yourname" />
                 </div>
               </div>
             </Section>
@@ -600,8 +650,8 @@ export function ResumeBuilder() {
             {/* Summary + writer */}
             <Section icon={<Sparkles className="h-5 w-5" />} title="Summary">
               <div>
-                <OptionLabel>Professional summary</OptionLabel>
-                <textarea
+                <OptionLabel htmlFor="resume-professional-summary">Professional summary</OptionLabel>
+                <textarea id="resume-professional-summary"
                   className={`${inputCls} min-h-24 resize-y`}
                   value={data.summary}
                   onChange={(e) => set("summary", e.target.value)}
@@ -616,16 +666,16 @@ export function ResumeBuilder() {
                 </p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <div>
-                    <OptionLabel>Profession</OptionLabel>
-                    <select className={selectCls} value={profession} onChange={(e) => setProfession(e.target.value)}>
+                    <OptionLabel htmlFor="resume-profession">Profession</OptionLabel>
+                    <select id="resume-profession" className={selectCls} value={profession} onChange={(e) => setProfession(e.target.value)}>
                       {SUMMARY_PROFESSIONS.map((p) => (
                         <option key={p} value={p}>{p}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <OptionLabel>Tone</OptionLabel>
-                    <select className={selectCls} value={tone} onChange={(e) => setTone(e.target.value as SummaryTone)}>
+                    <OptionLabel htmlFor="resume-tone">Tone</OptionLabel>
+                    <select id="resume-tone" className={selectCls} value={tone} onChange={(e) => setTone(e.target.value as SummaryTone)}>
                       <option value="professional">Professional</option>
                       <option value="confident">Confident</option>
                       <option value="friendly">Friendly</option>
@@ -663,8 +713,8 @@ export function ResumeBuilder() {
                   </div>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <div>
-                      <OptionLabel>Job title</OptionLabel>
-                      <input
+                      <OptionLabel htmlFor="{exp-role-${exp.id}}">Job title</OptionLabel>
+                      <input id="{exp-role-${exp.id}}"
                         className={inputCls}
                         value={exp.role}
                         placeholder="Customer Support Specialist"
@@ -674,8 +724,8 @@ export function ResumeBuilder() {
                       />
                     </div>
                     <div>
-                      <OptionLabel>Company</OptionLabel>
-                      <input
+                      <OptionLabel htmlFor="{exp-company-${exp.id}}">Company</OptionLabel>
+                      <input id="{exp-company-${exp.id}}"
                         className={inputCls}
                         value={exp.company}
                         placeholder="Northwind Software"
@@ -685,8 +735,8 @@ export function ResumeBuilder() {
                       />
                     </div>
                     <div>
-                      <OptionLabel>Start (e.g. 2022-01 or Jan 2022)</OptionLabel>
-                      <input
+                      <OptionLabel htmlFor="{exp-start-${exp.id}}">Start (e.g. 2022-01 or Jan 2022)</OptionLabel>
+                      <input id="{exp-start-${exp.id}}"
                         className={inputCls}
                         value={exp.start}
                         placeholder="2022-03"
@@ -696,8 +746,8 @@ export function ResumeBuilder() {
                       />
                     </div>
                     <div>
-                      <OptionLabel>End</OptionLabel>
-                      <input
+                      <OptionLabel htmlFor="{exp-end-${exp.id}}">End</OptionLabel>
+                      <input id="{exp-end-${exp.id}}"
                         className={inputCls}
                         value={exp.end}
                         placeholder="2025-01"
@@ -720,8 +770,8 @@ export function ResumeBuilder() {
                     </div>
                   </div>
                   <div className="mt-3">
-                    <OptionLabel>What you did — one achievement per line</OptionLabel>
-                    <textarea
+                    <OptionLabel htmlFor="{exp-bullets-${exp.id}}">What you did — one achievement per line</OptionLabel>
+                    <textarea id="{exp-bullets-${exp.id}}"
                       className={`${inputCls} min-h-20 resize-y`}
                       value={exp.bullets}
                       placeholder={"Resolved 60+ tickets a day\nRaised first-contact resolution to 91%"}
@@ -762,8 +812,8 @@ export function ResumeBuilder() {
                   </div>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <div>
-                      <OptionLabel>Degree / qualification</OptionLabel>
-                      <input
+                      <OptionLabel htmlFor="{edu-degree-${edu.id}}">Degree / qualification</OptionLabel>
+                      <input id="{edu-degree-${edu.id}}"
                         className={inputCls}
                         value={edu.degree}
                         placeholder="B.A. Communications"
@@ -773,8 +823,8 @@ export function ResumeBuilder() {
                       />
                     </div>
                     <div>
-                      <OptionLabel>School / university</OptionLabel>
-                      <input
+                      <OptionLabel htmlFor="{edu-school-${edu.id}}">School / university</OptionLabel>
+                      <input id="{edu-school-${edu.id}}"
                         className={inputCls}
                         value={edu.school}
                         placeholder="University of Texas at Austin"
@@ -784,8 +834,8 @@ export function ResumeBuilder() {
                       />
                     </div>
                     <div>
-                      <OptionLabel>Start year</OptionLabel>
-                      <input
+                      <OptionLabel htmlFor="{edu-start-${edu.id}}">Start year</OptionLabel>
+                      <input id="{edu-start-${edu.id}}"
                         className={inputCls}
                         value={edu.start}
                         placeholder="2016"
@@ -795,8 +845,8 @@ export function ResumeBuilder() {
                       />
                     </div>
                     <div>
-                      <OptionLabel>End year</OptionLabel>
-                      <input
+                      <OptionLabel htmlFor="{edu-end-${edu.id}}">End year</OptionLabel>
+                      <input id="{edu-end-${edu.id}}"
                         className={inputCls}
                         value={edu.end}
                         placeholder="2020"
@@ -820,33 +870,208 @@ export function ResumeBuilder() {
             {/* Skills */}
             <Section icon={<ListChecks className="h-5 w-5" />} title="Skills">
               <div>
-                <OptionLabel>Skills — separated by commas, or one per line</OptionLabel>
-                <textarea
+                <OptionLabel htmlFor="resume-skills-separated-by-commas-or-one-per-line">Skills — separated by commas, or one per line</OptionLabel>
+                <textarea id="resume-skills-separated-by-commas-or-one-per-line"
                   className={`${inputCls} min-h-20 resize-y`}
                   value={data.skills}
-                  onChange={(e) => set("skills", e.target.value)}
+                  onChange={(e) => setSkills(e.target.value)}
                   placeholder="Customer support, Zendesk, Live chat, Conflict resolution"
                 />
                 <p className="mt-1.5 text-xs text-slate-500">
-                  List the skills the job asks for, using the employer&apos;s own words where you honestly have them.
+                  Each skill appears on its own line in your resume — never as pills or chips. List the
+                  skills the job asks for, using the employer&apos;s own words where you honestly have them.
                 </p>
               </div>
+              {skillEntries(data).length > 0 && (
+                <div>
+                  <OptionLabel>Skill levels — shown as bars on the Umer Classic, Executive and Creative templates</OptionLabel>
+                  <div className="space-y-2">
+                    {skillEntries(data).map((e) => (
+                      <div key={e.name} className="flex items-center gap-3">
+                        <span className="w-40 shrink-0 truncate text-sm text-slate-800" title={e.name}>
+                          {e.name}
+                        </span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={e.level}
+                          aria-label={`Proficiency level for ${e.name}`}
+                          onChange={(ev) => setSkillLevel(e.name, Number(ev.target.value))}
+                          className="h-2 flex-1 accent-teal-700"
+                        />
+                        <span className="w-10 shrink-0 text-right text-xs font-semibold text-slate-700">{e.level}%</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    Other templates list the skills without bars. A level written in brackets, such as
+                    &ldquo;French (fluent)&rdquo;, is used as the starting level.
+                  </p>
+                </div>
+              )}
             </Section>
 
             {/* Languages */}
             <Section icon={<Languages className="h-5 w-5" />} title="Languages">
               <div>
-                <OptionLabel>Languages — separated by commas, or one per line</OptionLabel>
-                <textarea
+                <OptionLabel htmlFor="resume-languages-separated-by-commas-or-one-per-line">Languages — separated by commas, or one per line</OptionLabel>
+                <textarea id="resume-languages-separated-by-commas-or-one-per-line"
                   className={`${inputCls} min-h-20 resize-y`}
                   value={data.languages}
-                  onChange={(e) => set("languages", e.target.value)}
+                  onChange={(e) => setLanguages(e.target.value)}
                   placeholder="English (native), Spanish (conversational)"
                 />
                 <p className="mt-1.5 text-xs text-slate-500">
-                  Add your level in brackets if you like, for example &ldquo;French (fluent)&rdquo;. Languages
-                  appear in their own section in the preview and in the Word export.
+                  Each language appears on its own line in your resume. Add your level in brackets if you
+                  like, for example &ldquo;French (fluent)&rdquo;.
                 </p>
+              </div>
+              {languageEntries(data).length > 0 && (
+                <div>
+                  <OptionLabel>Language levels — shown as bars on the Umer Classic, Executive and Creative templates</OptionLabel>
+                  <div className="space-y-2">
+                    {languageEntries(data).map((e) => (
+                      <div key={e.name} className="flex items-center gap-3">
+                        <span className="w-40 shrink-0 truncate text-sm text-slate-800" title={e.name}>
+                          {e.name}
+                        </span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={e.level}
+                          aria-label={`Proficiency level for ${e.name}`}
+                          onChange={(ev) => setLanguageLevel(e.name, Number(ev.target.value))}
+                          className="h-2 flex-1 accent-teal-700"
+                        />
+                        <span className="w-10 shrink-0 text-right text-xs font-semibold text-slate-700">{e.level}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Section>
+
+            {/* Academic experience */}
+            <Section icon={<BookOpen className="h-5 w-5" />} title="Academic experience">
+              <p className="-mt-1 text-xs leading-relaxed text-slate-500">
+                Competitions, moot courts, research, conferences and other academic work — shown in its own
+                section, and in two columns on the Umer Classic template.
+              </p>
+              {(data.academicExperience ?? []).map((item, i) => (
+                <div key={item.id} className="rounded-xl border border-slate-200 p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-bold text-slate-900">Academic experience {i + 1}</p>
+                    <button
+                      type="button"
+                      aria-label={`Remove academic experience ${i + 1}`}
+                      onClick={() => set("academicExperience", (data.academicExperience ?? []).filter((x) => x.id !== item.id))}
+                      className="text-red-700 hover:text-red-900"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <OptionLabel htmlFor="{acad-title-${item.id}}">Title</OptionLabel>
+                      <input id="{acad-title-${item.id}}"
+                        className={inputCls}
+                        value={item.title}
+                        placeholder="1st National Moot Court Competition"
+                        onChange={(e) =>
+                          set("academicExperience", (data.academicExperience ?? []).map((x) => (x.id === item.id ? { ...x, title: e.target.value } : x)))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <OptionLabel htmlFor="{acad-org-${item.id}}">Organisation / place</OptionLabel>
+                      <input id="{acad-org-${item.id}}"
+                        className={inputCls}
+                        value={item.org}
+                        placeholder="National Law College — Rawalpindi"
+                        onChange={(e) =>
+                          set("academicExperience", (data.academicExperience ?? []).map((x) => (x.id === item.id ? { ...x, org: e.target.value } : x)))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <OptionLabel htmlFor="{acad-start-${item.id}}">Start (e.g. 2024 or Jan 2024)</OptionLabel>
+                      <input id="{acad-start-${item.id}}"
+                        className={inputCls}
+                        value={item.start}
+                        placeholder="2024"
+                        onChange={(e) =>
+                          set("academicExperience", (data.academicExperience ?? []).map((x) => (x.id === item.id ? { ...x, start: e.target.value } : x)))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <OptionLabel htmlFor="{acad-end-${item.id}}">End</OptionLabel>
+                      <input id="{acad-end-${item.id}}"
+                        className={inputCls}
+                        value={item.end}
+                        placeholder="2025"
+                        onChange={(e) =>
+                          set("academicExperience", (data.academicExperience ?? []).map((x) => (x.id === item.id ? { ...x, end: e.target.value } : x)))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <OptionLabel htmlFor="{acad-bullets-${item.id}}">What you did — one achievement per line</OptionLabel>
+                    <textarea id="{acad-bullets-${item.id}}"
+                      className={`${inputCls} min-h-20 resize-y`}
+                      value={item.bullets}
+                      placeholder={"Participated in the national moot court competition\nStrengthened skills in legal research and argumentation"}
+                      onChange={(e) =>
+                        set("academicExperience", (data.academicExperience ?? []).map((x) => (x.id === item.id ? { ...x, bullets: e.target.value } : x)))
+                      }
+                    />
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() =>
+                  set("academicExperience", [
+                    ...(data.academicExperience ?? []),
+                    { id: uid("acad"), title: "", org: "", start: "", end: "", bullets: "" },
+                  ])
+                }
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:border-teal-600"
+              >
+                <Plus className="h-4 w-4" /> Add academic experience
+              </button>
+            </Section>
+
+            {/* References */}
+            <Section icon={<Quote className="h-5 w-5" />} title="References">
+              <div>
+                <label className="flex items-start gap-2 text-sm text-slate-800">
+                  <input
+                    type="checkbox"
+                    checked={data.referencesOnRequest ?? false}
+                    onChange={(e) => set("referencesOnRequest", e.target.checked)}
+                    className="mt-0.5 h-4 w-4 accent-teal-700"
+                  />
+                  <span>
+                    References will be provided upon request
+                    <span className="block text-xs text-slate-500">
+                      Shows the standard line instead of referee details. Leave it off to list referees below.
+                    </span>
+                  </span>
+                </label>
+              </div>
+              <div>
+                <OptionLabel htmlFor="resume-referees-name-role-and-contact-one-per-line-optional">Referees — name, role and contact, one per line (optional)</OptionLabel>
+                <textarea id="resume-referees-name-role-and-contact-one-per-line-optional"
+                  className={`${inputCls} min-h-20 resize-y`}
+                  value={data.referencesText ?? ""}
+                  disabled={data.referencesOnRequest ?? false}
+                  onChange={(e) => set("referencesText", e.target.value)}
+                  placeholder={"Dr A. Khan, Lecturer in Law, National Law College — a.khan@example.com"}
+                />
               </div>
             </Section>
           </div>
@@ -864,6 +1089,7 @@ export function ResumeBuilder() {
                 template={template}
                 dateFormat={dateFormat}
                 photo={photoOn ? photo : null}
+                photoOn={photoOn}
                 fontId={fontId}
                 themeId={themeId}
               />

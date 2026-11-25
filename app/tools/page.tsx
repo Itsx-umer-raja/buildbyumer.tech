@@ -4,25 +4,25 @@ import { TOOLS, CATEGORIES } from "@/lib/tools";
 import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "All PDF Tools — Free Online PDF Tools",
+  title: "All Tools — Free Online PDF Tools & Student Calculators",
   description:
-    "Browse all 31 free PDF tools: merge, split, compress, convert, edit, protect and more. Every tool runs in your browser — no sign-up, no uploads.",
-  keywords: ["pdf tools", "pdf converter online free", "pdf world tools", "pdf converter"],
+    `Browse all ${TOOLS.length} free tools: PDF tools to merge, split, compress, convert, edit and protect, plus student calculators for GPA, CGPA and percentages. Every tool runs in your browser — no sign-up, no uploads.`,
+  keywords: ["pdf tools", "pdf converter online free", "pdf world tools", "pdf converter", "gpa calculator", "cgpa calculator"],
   alternates: { canonical: "/tools" },
   openGraph: {
     type: "website",
     url: "/tools",
     siteName: "PDF World",
-    title: "All PDF Tools — Free Online PDF Tools | PDF World",
+    title: "All Tools — Free Online PDF Tools & Student Calculators | PDF World",
     description:
-      "Browse all 31 free PDF tools: merge, split, compress, convert, edit, protect and more. Every tool runs in your browser — no sign-up, no uploads.",
+      `Browse all ${TOOLS.length} free tools: PDF tools to merge, split, compress, convert, edit and protect, plus student calculators for GPA, CGPA and percentages. Every tool runs in your browser — no sign-up, no uploads.`,
     images: [{ url: "/pdf-world-icon-512.png", width: 512, height: 512, alt: "PDF World logo" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "All PDF Tools — Free Online PDF Tools | PDF World",
+    title: "All Tools — Free Online PDF Tools & Student Calculators | PDF World",
     description:
-      "Browse all 31 free PDF tools: merge, split, compress, convert, edit, protect and more. Every tool runs in your browser — no sign-up, no uploads.",
+      `Browse all ${TOOLS.length} free tools: PDF tools to merge, split, compress, convert, edit and protect, plus student calculators for GPA, CGPA and percentages. Every tool runs in your browser — no sign-up, no uploads.`,
     images: ["/pdf-world-icon-512.png"],
   },
 };
@@ -33,16 +33,16 @@ export default function ToolsHubPage() {
     "@graph": [
       {
         "@type": "WebPage",
-        name: "All PDF Tools — Free Online PDF Tools",
+        name: "All Tools — Free Online PDF Tools & Student Calculators",
         url: `${SITE_URL}/tools`,
         description:
-          "Browse all 31 free PDF tools: merge, split, compress, convert, edit, protect and more.",
+          `Browse all ${TOOLS.length} free tools: PDF tools to merge, split, compress, convert, edit and protect, plus student calculators for GPA, CGPA and percentages.`,
       },
       {
         "@type": "BreadcrumbList",
         itemListElement: [
           { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
-          { "@type": "ListItem", position: 2, name: "All PDF tools", item: `${SITE_URL}/tools` },
+          { "@type": "ListItem", position: 2, name: "All tools", item: `${SITE_URL}/tools` },
         ],
       },
     ],
@@ -63,7 +63,7 @@ export default function ToolsHubPage() {
           <li aria-current="page" className="font-medium text-slate-700">All tools</li>
         </ol>
       </nav>
-      <h1 className="mt-4 font-display text-3xl font-bold text-slate-900 sm:text-4xl">All PDF tools</h1>
+      <h1 className="mt-4 font-display text-3xl font-bold text-slate-900 sm:text-4xl">All tools</h1>
       <p className="mt-3 max-w-2xl leading-relaxed text-slate-600">
         Every PDF World tool is free, with no account and no uploads — each one runs entirely
         in your browser. Pick a tool below, or{" "}

@@ -77,12 +77,12 @@ export function ProtectTool() {
       {file && <FileList files={[file]} onRemove={() => setFile(null)} />}
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <div>
-          <OptionLabel>New password</OptionLabel>
-          <input className={inputCls} type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 4 characters" />
+          <OptionLabel htmlFor="secure-new-password">New password</OptionLabel>
+          <input id="secure-new-password" className={inputCls} type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 4 characters" />
         </div>
         <div>
-          <OptionLabel>Confirm password</OptionLabel>
-          <input className={inputCls} type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Repeat the password" />
+          <OptionLabel htmlFor="secure-confirm-password">Confirm password</OptionLabel>
+          <input id="secure-confirm-password" className={inputCls} type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Repeat the password" />
         </div>
       </div>
       <p className="mt-3 text-sm text-slate-500">
@@ -192,8 +192,8 @@ export function UnlockTool() {
       <Dropzone accept="application/pdf,.pdf" onFiles={(fs) => setFile(fs[0] ?? null)} hint="One password-protected PDF" />
       {file && <FileList files={[file]} onRemove={() => setFile(null)} />}
       <div className="mt-5 max-w-sm">
-        <OptionLabel>Current PDF password</OptionLabel>
-        <input className={inputCls} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="The password you already know" />
+        <OptionLabel htmlFor="secure-current-pdf-password">Current PDF password</OptionLabel>
+        <input id="secure-current-pdf-password" className={inputCls} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="The password you already know" />
       </div>
       <ProcessButton busy={busy} disabled={!file} label="Unlock PDF" busyLabel="Unlocking…" onClick={run} />
       <ErrorNote message={error} />

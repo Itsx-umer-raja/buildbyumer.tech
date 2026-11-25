@@ -2,14 +2,14 @@
 //
 // Set it with the NEXT_PUBLIC_SITE_URL environment variable (e.g. in
 // Vercel: Project -> Settings -> Environment Variables). The fallback below
-// is a PLACEHOLDER, not a real domain: "https://buildbyumer.vercel.app" is
-// only a guess at the Vercel address this project will get. The owner MUST
-// replace it with the site's real domain — see HOW-TO-DEPLOY.md. Do not
-// treat the placeholder as the site's address.
+// is the site's real domain, https://www.builtbyumer.tech. If the site ever
+// moves, set NEXT_PUBLIC_SITE_URL instead of editing this file.
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "")
   .trim()
-  .replace(/\/$/, "") || "https://buildbyumer.vercel.app";
+  .replace(/\/$/, "") || "https://www.builtbyumer.tech";
 
-/** True when the owner has set a real site URL (i.e. not the placeholder). */
-export const SITE_URL_IS_PLACEHOLDER =
-  SITE_URL === "https://buildbyumer.vercel.app";
+/**
+ * Kept for backwards compatibility. The fallback above is the site's real
+ * domain, so there is no placeholder URL any more — this is always false.
+ */
+export const SITE_URL_IS_PLACEHOLDER = false;

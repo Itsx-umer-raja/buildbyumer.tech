@@ -1,14 +1,18 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import type { ResumeData, ResumeTemplateId, DateFormat } from "@/lib/resume";
+import { Phone, Mail, MapPin, Globe, Link2 } from "lucide-react";
+import type { AcademicExperienceItem, ResumeData, ResumeTemplateId, DateFormat } from "@/lib/resume";
 import {
   formatRange,
-  skillList,
-  languageList,
+  skillEntries,
+  languageEntries,
+  stripLevelLabel,
   bulletList,
   hasExperienceContent,
   hasEducationContent,
+  hasAcademicExperienceContent,
+  hasReferencesContent,
 } from "@/lib/resume";
 import { getResumeFont, getResumeTheme, TEMPLATE_DEFAULT_FONTS } from "@/lib/resume-fonts";
 
@@ -24,6 +28,31 @@ function initials(name: string): string {
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase() ?? "")
     .join("");
+}
+
+function PhotoSlot({
+  photo,
+  photoOn,
+  className,
+  rounded = "rounded-full",
+}: {
+  photo: string | null;
+  photoOn: boolean;
+  className: string;
+  rounded?: string;
+}) {
+  if (photo) return <img src={photo} alt="" className={`${className} object-cover ${rounded}`} />;
+  // Photo switched on but none uploaded yet: an empty placeholder box, never
+  // anyone else's photo and never a stock image.
+  if (!photoOn) return null;
+  return (
+    <div
+      className={`${className} flex shrink-0 items-center justify-center border-2 border-dashed border-slate-300 bg-slate-50 text-center text-[10px] font-medium leading-tight text-slate-400 ${rounded}`}
+      aria-hidden
+    >
+      Your photo
+    </div>
+  );
 }
 
 function PhotoOrInitials({
@@ -101,11 +130,14 @@ function EducationSection({
   fmt,
   headingCls,
   headingStyle,
+  badge = false,
 }: {
   data: ResumeData;
   fmt: DateFormat;
   headingCls: string;
   headingStyle?: CSSProperties;
+  /** Black year badge (Umer Classic) instead of a grey date line. */
+  badge?: boolean;
 }) {
   const items = data.education.filter(hasEducationContent);
   if (!items.length) return null;
@@ -123,7 +155,13 @@ function EducationSection({
               <p>
                 <span className="font-bold">{line || range || "Education"}</span>
               </p>
-              {line && range ? <p className="text-[11px] text-slate-500">{range}</p> : null}
+              {line && range ? (
+                badge ? (
+                  <span className="bg-black px-2 py-0.5 text-[10px] font-bold text-white">{range}</span>
+                ) : (
+                  <p className="text-[11px] text-slate-500">{range}</p>
+                )
+              ) : null}
             </div>
           );
         })}
@@ -132,22 +170,119 @@ function EducationSection({
   );
 }
 
-function SkillsSection({
+function AcademicExperienceSection({
   data,
-  pill,
+  fmt,
   headingCls,
   headingStyle,
-  variant = "pills",
+  badge = false,
 }: {
   data: ResumeData;
-  pill: boolean;
+  fmt: DateFormat;
+  headingCls: string;
+  headingStyle?: CSSProperties;
+  badge?: boolean;
+}) {
+  const items = (data.academicExperience ?? []).filter(hasAcademicExperienceContent);
+  if (!items.length) return null;
+  return (
+    <section className="break-inside-avoid">
+      <h2 className={headingCls} style={headingStyle}>
+        Academic Experience
+      </h2>
+      <div className="space-y-3">
+        {items.map((e) => {
+          const titleLine = [e.title.trim(), e.org.trim()].filter(Boolean).join(" — ");
+          const range = formatRange(e.start, e.end, false, fmt);
+          return (
+            <div key={e.id} className="break-inside-avoid">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                <p className="font-bold">{titleLine || range || "Academic Experience"}</p>
+                {titleLine && range ? (
+                  badge ? (
+                    <span className="bg-black px-2 py-0.5 text-[10px] font-bold text-white">{range}</span>
+                  ) : (
+                    <p className="text-[11px] text-slate-500">{range}</p>
+                  )
+                ) : null}
+              </div>
+              {bulletList(e.bullets).length > 0 && (
+                <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[12.5px] leading-relaxed">
+                  {bulletList(e.bullets).map((b, i) => (
+                    <li key={i}>{b}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function ReferencesSection({
+  data,
+  headingCls,
+  headingStyle,
+  centered = false,
+  label = "References",
+}: {
+  data: ResumeData;
+  headingCls: string;
+  headingStyle?: CSSProperties;
+  centered?: boolean;
+  label?: string;
+}) {
+  if (!hasReferencesContent(data)) return null;
+  const text = data.referencesOnRequest
+    ? "References will be provided upon request."
+    : (data.referencesText ?? "").trim();
+  if (!text) return null;
+  return (
+    <section className={`break-inside-avoid ${centered ? "text-center" : ""}`}>
+      <h2 className={headingCls} style={headingStyle}>
+        {label}
+      </h2>
+      <p className="text-[12.5px] leading-relaxed">{text}</p>
+    </section>
+  );
+}
+
+function SkillBar({ level, dark }: { level: number; dark?: boolean }) {
+  return (
+    <span
+      className={`mt-1 block h-1.5 w-24 ${dark ? "bg-white/25" : "bg-slate-200"}`}
+      role="img"
+      aria-label={`Proficiency ${level} out of 100`}
+    >
+      <span
+        className={`block h-full ${dark ? "bg-white" : "bg-[var(--resume-accent)]"}`}
+        style={{ width: `${level}%` }}
+      />
+    </span>
+  );
+}
+
+// Skills are ALWAYS one per line (a bulleted list) in every template — never
+// pills/chips. Bar templates add a proficiency bar under each skill; the
+// level label is then dropped from the text so it is not shown twice.
+function SkillsSection({
+  data,
+  headingCls,
+  headingStyle,
+  showBars = false,
+  dark = false,
+}: {
+  data: ResumeData;
   headingCls?: string;
   headingStyle?: CSSProperties;
-  variant?: "pills" | "line" | "list";
+  showBars?: boolean;
+  dark?: boolean;
 }) {
-  const skills = skillList(data.skills);
+  const entries = skillEntries(data);
   // B4: no heading at all when there are no skills.
-  if (!skills.length) return null;
+  if (!entries.length) return null;
   return (
     <section className="break-inside-avoid">
       {headingCls ? (
@@ -155,44 +290,40 @@ function SkillsSection({
           Skills
         </h2>
       ) : null}
-      {variant === "pills" || pill ? (
-        <div className="flex flex-wrap gap-1.5">
-          {skills.map((s, i) => (
-            <span
-              key={`${s}-${i}`}
-              className="rounded-full bg-[var(--resume-accent-soft)] px-2.5 py-1 text-[11.5px] font-medium text-[var(--resume-accent-dark)] ring-1 ring-[var(--resume-accent)]"
-            >
-              {s}
+      <ul className={`space-y-1.5 text-[12.5px] leading-relaxed ${dark ? "text-white" : ""}`}>
+        {entries.map((e, i) => (
+          <li key={`${e.name}-${i}`} className="flex flex-col">
+            <span className="flex items-start gap-2">
+              <span
+                aria-hidden
+                className={`mt-[7px] h-1.5 w-1.5 shrink-0 ${dark ? "bg-white" : "bg-[var(--resume-accent)]"}`}
+              />
+              {showBars ? stripLevelLabel(e.name) : e.name}
             </span>
-          ))}
-        </div>
-      ) : variant === "list" ? (
-        <ul className="space-y-1 text-[12.5px] leading-relaxed">
-          {skills.map((s, i) => (
-            <li key={`${s}-${i}`} className="flex items-start gap-2">
-              <span aria-hidden className="mt-[7px] h-1.5 w-1.5 shrink-0 bg-[var(--resume-accent)]" />
-              {s}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-[12.5px] leading-relaxed">{skills.join("  ·  ")}</p>
-      )}
+            {showBars ? <span className="pl-3.5"><SkillBar level={e.level} dark={dark} /></span> : null}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
 
+// Languages are likewise one per line; bar templates show a proficiency bar.
 function LanguagesSection({
   data,
   headingCls,
   headingStyle,
+  showBars = false,
+  dark = false,
 }: {
   data: ResumeData;
   headingCls?: string;
   headingStyle?: CSSProperties;
+  showBars?: boolean;
+  dark?: boolean;
 }) {
-  const langs = languageList(data.languages);
-  if (!langs.length) return null;
+  const entries = languageEntries(data);
+  if (!entries.length) return null;
   return (
     <section className="break-inside-avoid">
       {headingCls ? (
@@ -200,7 +331,20 @@ function LanguagesSection({
           Languages
         </h2>
       ) : null}
-      <p className="text-[12.5px] leading-relaxed">{langs.join("  ·  ")}</p>
+      <ul className={`space-y-1.5 text-[12.5px] leading-relaxed ${dark ? "text-white" : ""}`}>
+        {entries.map((e, i) => (
+          <li key={`${e.name}-${i}`} className="flex flex-col">
+            <span className="flex items-start gap-2">
+              <span
+                aria-hidden
+                className={`mt-[7px] h-1.5 w-1.5 shrink-0 ${dark ? "bg-white" : "bg-[var(--resume-accent)]"}`}
+              />
+              {showBars ? stripLevelLabel(e.name) : e.name}
+            </span>
+            {showBars ? <span className="pl-3.5"><SkillBar level={e.level} dark={dark} /></span> : null}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
@@ -209,16 +353,18 @@ function SummarySection({
   data,
   headingCls,
   headingStyle,
+  label = "Summary",
 }: {
   data: ResumeData;
   headingCls: string;
   headingStyle?: CSSProperties;
+  label?: string;
 }) {
   if (!data.summary.trim()) return null;
   return (
     <section className="break-inside-avoid">
       <h2 className={headingCls} style={headingStyle}>
-        Summary
+        {label}
       </h2>
       <p className="text-[12.5px] leading-relaxed">{data.summary}</p>
     </section>
@@ -230,11 +376,13 @@ function ModernTemplate({
   data,
   fmt,
   photo,
+  photoOn,
   headingStyle,
 }: {
   data: ResumeData;
   fmt: DateFormat;
   photo: string | null;
+  photoOn: boolean;
   headingStyle?: CSSProperties;
 }) {
   const h =
@@ -243,7 +391,7 @@ function ModernTemplate({
     <div className="space-y-4 text-slate-800">
       <header className="border-l-4 border-[var(--resume-accent)] pl-4">
         <div className="flex items-start gap-4">
-          {photo && <img src={photo} alt="" className="h-20 w-20 rounded-full object-cover" />}
+          <PhotoSlot photo={photo} photoOn={photoOn} className="h-20 w-20" />
           <div>
             <h1 className="text-[26px] font-bold leading-tight text-slate-900" style={headingStyle}>
               {data.fullName || "Your Name"}
@@ -257,9 +405,11 @@ function ModernTemplate({
       </header>
       <SummarySection data={data} headingCls={h} headingStyle={headingStyle} />
       <ExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+      <AcademicExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
       <EducationSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
-      <SkillsSection data={data} pill headingCls={h} headingStyle={headingStyle} />
+      <SkillsSection data={data} headingCls={h} headingStyle={headingStyle} />
       <LanguagesSection data={data} headingCls={h} headingStyle={headingStyle} />
+      <ReferencesSection data={data} headingCls={h} headingStyle={headingStyle} />
     </div>
   );
 }
@@ -269,11 +419,13 @@ function ClassicTemplate({
   data,
   fmt,
   photo,
+  photoOn,
   headingStyle,
 }: {
   data: ResumeData;
   fmt: DateFormat;
   photo: string | null;
+  photoOn: boolean;
   headingStyle?: CSSProperties;
 }) {
   const h =
@@ -281,7 +433,7 @@ function ClassicTemplate({
   return (
     <div className="space-y-4 text-slate-800">
       <header className="text-center">
-        {photo && <img src={photo} alt="" className="mx-auto mb-2 h-20 w-20 rounded-full object-cover" />}
+        <div className="mb-2 flex justify-center"><PhotoSlot photo={photo} photoOn={photoOn} className="h-20 w-20" /></div>
         <h1 className="text-[26px] font-bold leading-tight text-slate-900" style={headingStyle}>
           {data.fullName || "Your Name"}
         </h1>
@@ -293,9 +445,11 @@ function ClassicTemplate({
       </header>
       <SummarySection data={data} headingCls={h} headingStyle={headingStyle} />
       <ExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+      <AcademicExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
       <EducationSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
-      <SkillsSection data={data} pill={false} headingCls={h} headingStyle={headingStyle} />
+      <SkillsSection data={data} headingCls={h} headingStyle={headingStyle} />
       <LanguagesSection data={data} headingCls={h} headingStyle={headingStyle} />
+      <ReferencesSection data={data} headingCls={h} headingStyle={headingStyle} />
     </div>
   );
 }
@@ -305,11 +459,13 @@ function MinimalTemplate({
   data,
   fmt,
   photo,
+  photoOn,
   headingStyle,
 }: {
   data: ResumeData;
   fmt: DateFormat;
   photo: string | null;
+  photoOn: boolean;
   headingStyle?: CSSProperties;
 }) {
   const h = "mb-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400";
@@ -317,7 +473,7 @@ function MinimalTemplate({
     <div className="space-y-5 text-slate-800">
       <header>
         <div className="flex items-start gap-4">
-          {photo && <img src={photo} alt="" className="h-16 w-16 rounded-full object-cover" />}
+          <PhotoSlot photo={photo} photoOn={photoOn} className="h-16 w-16" />
           <div>
             <h1
               className="text-[24px] font-light leading-tight tracking-wide text-slate-900"
@@ -335,9 +491,11 @@ function MinimalTemplate({
       </header>
       <SummarySection data={data} headingCls={h} headingStyle={headingStyle} />
       <ExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+      <AcademicExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
       <EducationSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
-      <SkillsSection data={data} pill={false} headingCls={h} headingStyle={headingStyle} />
+      <SkillsSection data={data} headingCls={h} headingStyle={headingStyle} />
       <LanguagesSection data={data} headingCls={h} headingStyle={headingStyle} />
+      <ReferencesSection data={data} headingCls={h} headingStyle={headingStyle} />
     </div>
   );
 }
@@ -360,9 +518,11 @@ function AtsTemplate({ data, fmt }: { data: ResumeData; fmt: DateFormat; photo: 
       </header>
       <SummarySection data={data} headingCls={h} headingStyle={arial} />
       <ExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={arial} />
+      <AcademicExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={arial} />
       <EducationSection data={data} fmt={fmt} headingCls={h} headingStyle={arial} />
-      <SkillsSection data={data} pill={false} headingCls={h} headingStyle={arial} />
+      <SkillsSection data={data} headingCls={h} headingStyle={arial} />
       <LanguagesSection data={data} headingCls={h} headingStyle={arial} />
+      <ReferencesSection data={data} headingCls={h} headingStyle={arial} />
     </div>
   );
 }
@@ -373,10 +533,14 @@ function AtsTemplate({ data, fmt }: { data: ResumeData; fmt: DateFormat; photo: 
 function TwoColumnTemplate({
   data,
   fmt,
+  photo,
+  photoOn,
   headingStyle,
 }: {
   data: ResumeData;
   fmt: DateFormat;
+  photo: string | null;
+  photoOn: boolean;
   headingStyle?: CSSProperties;
 }) {
   const h =
@@ -386,24 +550,33 @@ function TwoColumnTemplate({
   return (
     <div className="text-slate-800">
       <header className="border-b-2 border-[var(--resume-accent)] pb-3">
-        <h1 className="text-[26px] font-bold leading-tight text-slate-900" style={headingStyle}>
-          {data.fullName || "Your Name"}
-        </h1>
-        {data.title && <p className="text-[13px] font-semibold text-[var(--resume-accent)]">{data.title}</p>}
-        <div className="mt-1 text-[11.5px] text-slate-500">
-          <ContactLine data={data} />
+        <div className="flex items-start gap-4">
+          <PhotoSlot photo={photo} photoOn={photoOn} className="h-16 w-16" />
+          <div>
+            <h1 className="text-[26px] font-bold leading-tight text-slate-900" style={headingStyle}>
+              {data.fullName || "Your Name"}
+            </h1>
+            {data.title && <p className="text-[13px] font-semibold text-[var(--resume-accent)]">{data.title}</p>}
+            <div className="mt-1 text-[11.5px] text-slate-500">
+              <ContactLine data={data} />
+            </div>
+          </div>
         </div>
       </header>
       <div className="mt-4 flex gap-6">
         <aside className="w-[32%] shrink-0 space-y-4 border-r border-slate-200 pr-5">
-          <SkillsSection data={data} pill headingCls={sideH} headingStyle={headingStyle} />
+          <SkillsSection data={data} headingCls={sideH} headingStyle={headingStyle} />
           <EducationSection data={data} fmt={fmt} headingCls={sideH} headingStyle={headingStyle} />
           <LanguagesSection data={data} headingCls={sideH} headingStyle={headingStyle} />
         </aside>
         <div className="min-w-0 flex-1 space-y-4">
           <SummarySection data={data} headingCls={h} headingStyle={headingStyle} />
           <ExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+          <AcademicExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
         </div>
+      </div>
+      <div className="mt-4">
+        <ReferencesSection data={data} headingCls={h} headingStyle={headingStyle} />
       </div>
     </div>
   );
@@ -411,7 +584,7 @@ function TwoColumnTemplate({
 
 // ---------------------------------------------------------------- Fresh Graduate (new)
 // Solid theme-coloured sidebar with a round photo (or initials), contact,
-// skills as pale pills, and education; Education sits above Experience in
+// skills listed one per line, and education; Education sits above Experience in
 // the main column for a graduate-first reading order.
 function FreshGradTemplate({
   data,
@@ -443,13 +616,8 @@ function FreshGradTemplate({
                 ))}
             </div>
           </div>
-          <SkillsSection
-            data={data}
-            pill
-            headingCls={sideH}
-            headingStyle={headingStyle}
-          />
-          <LanguagesSection data={data} headingCls={sideH} headingStyle={headingStyle} />
+          <SkillsSection data={data} headingCls={sideH} headingStyle={headingStyle} dark />
+          <LanguagesSection data={data} headingCls={sideH} headingStyle={headingStyle} dark />
         </div>
       </aside>
       <div className="min-w-0 flex-1 space-y-4 pl-6">
@@ -463,6 +631,8 @@ function FreshGradTemplate({
         <SummarySection data={data} headingCls={h} headingStyle={headingStyle} />
         <EducationSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
         <ExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <AcademicExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <ReferencesSection data={data} headingCls={h} headingStyle={headingStyle} />
       </div>
     </div>
   );
@@ -501,8 +671,8 @@ function NavySidebarTemplate({
                 ))}
             </div>
           </div>
-          <SkillsSection data={data} pill={false} variant="list" headingCls={sideH} headingStyle={headingStyle} />
-          <LanguagesSection data={data} headingCls={sideH} headingStyle={headingStyle} />
+          <SkillsSection data={data} headingCls={sideH} headingStyle={headingStyle} dark />
+          <LanguagesSection data={data} headingCls={sideH} headingStyle={headingStyle} dark />
         </div>
       </aside>
       <div className="min-w-0 flex-1 space-y-4 pl-6">
@@ -515,7 +685,9 @@ function NavySidebarTemplate({
         </header>
         <SummarySection data={data} headingCls={h} headingStyle={headingStyle} />
         <ExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <AcademicExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
         <EducationSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <ReferencesSection data={data} headingCls={h} headingStyle={headingStyle} />
       </div>
     </div>
   );
@@ -528,11 +700,13 @@ function PastelTemplate({
   data,
   fmt,
   photo,
+  photoOn,
   headingStyle,
 }: {
   data: ResumeData;
   fmt: DateFormat;
   photo: string | null;
+  photoOn: boolean;
   headingStyle?: CSSProperties;
 }) {
   const h =
@@ -540,7 +714,7 @@ function PastelTemplate({
   return (
     <div className="-mx-8 -my-10 bg-[#FDF6EC] px-8 py-10 text-[#3F3A36] sm:-mx-10 sm:px-10">
       <header className="text-center">
-        {photo && <img src={photo} alt="" className="mx-auto mb-3 h-20 w-20 rounded-full object-cover ring-2 ring-[#E5D5C8]" />}
+        <div className="mb-3 flex justify-center"><PhotoSlot photo={photo} photoOn={photoOn} className="h-20 w-20 ring-2 ring-[#E5D5C8]" /></div>
         <h1 className="text-[28px] font-bold leading-tight text-[#2B2622]" style={headingStyle}>
           {data.fullName || "Your Name"}
         </h1>
@@ -553,9 +727,11 @@ function PastelTemplate({
       <div className="mt-5 space-y-4">
         <SummarySection data={data} headingCls={h} headingStyle={headingStyle} />
         <ExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <AcademicExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
         <EducationSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
-        <SkillsSection data={data} pill headingCls={h} headingStyle={headingStyle} />
+        <SkillsSection data={data} headingCls={h} headingStyle={headingStyle} />
         <LanguagesSection data={data} headingCls={h} headingStyle={headingStyle} />
+        <ReferencesSection data={data} headingCls={h} headingStyle={headingStyle} />
       </div>
     </div>
   );
@@ -568,11 +744,13 @@ function BoldTemplate({
   data,
   fmt,
   photo,
+  photoOn,
   headingStyle,
 }: {
   data: ResumeData;
   fmt: DateFormat;
   photo: string | null;
+  photoOn: boolean;
   headingStyle?: CSSProperties;
 }) {
   const h =
@@ -581,7 +759,7 @@ function BoldTemplate({
     <div className="space-y-4 text-slate-800">
       <header>
         <div className="flex items-start gap-4">
-          {photo && <img src={photo} alt="" className="h-20 w-20 rounded-md object-cover" />}
+          <PhotoSlot photo={photo} photoOn={photoOn} className="h-20 w-20" rounded="rounded-md" />
           <div>
             <h1
               className="text-[34px] font-extrabold uppercase leading-none tracking-tight text-[var(--resume-accent)]"
@@ -601,9 +779,11 @@ function BoldTemplate({
       </header>
       <SummarySection data={data} headingCls={h} headingStyle={headingStyle} />
       <ExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+      <AcademicExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
       <EducationSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
-      <SkillsSection data={data} pill headingCls={h} headingStyle={headingStyle} />
+      <SkillsSection data={data} headingCls={h} headingStyle={headingStyle} />
       <LanguagesSection data={data} headingCls={h} headingStyle={headingStyle} />
+      <ReferencesSection data={data} headingCls={h} headingStyle={headingStyle} />
     </div>
   );
 }
@@ -614,10 +794,14 @@ function BoldTemplate({
 function SimpleTemplate({
   data,
   fmt,
+  photo,
+  photoOn,
   headingStyle,
 }: {
   data: ResumeData;
   fmt: DateFormat;
+  photo: string | null;
+  photoOn: boolean;
   headingStyle?: CSSProperties;
 }) {
   const h =
@@ -625,6 +809,7 @@ function SimpleTemplate({
   return (
     <div className="space-y-4 text-slate-800">
       <header className="text-center">
+        <div className="mb-2 flex justify-center"><PhotoSlot photo={photo} photoOn={photoOn} className="h-20 w-20" /></div>
         <h1 className="text-[24px] font-bold leading-tight text-slate-900" style={headingStyle}>
           {data.fullName || "Your Name"}
         </h1>
@@ -636,9 +821,283 @@ function SimpleTemplate({
       </header>
       <SummarySection data={data} headingCls={h} headingStyle={headingStyle} />
       <ExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+      <AcademicExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
       <EducationSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
-      <SkillsSection data={data} pill={false} headingCls={h} headingStyle={headingStyle} />
+      <SkillsSection data={data} headingCls={h} headingStyle={headingStyle} />
       <LanguagesSection data={data} headingCls={h} headingStyle={headingStyle} />
+      <ReferencesSection data={data} headingCls={h} headingStyle={headingStyle} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- Umer Classic (new)
+// Black-and-white serif CV, reproducing the layout of the user's own CV
+// (used with his permission; no personal data from it is used as defaults):
+// rectangular photo top-left, big letterspaced serif name, black badge with
+// the title in white, two columns split by a vertical divider — About Me,
+// Skills and Languages (with black proficiency bars) on the left; Contact
+// with icons and Education with black year badges on the right — then
+// Academic Experience in two columns and a centred Reference line. The
+// colour theme is ignored here by design; the font picker still applies.
+function UmerClassicTemplate({
+  data,
+  fmt,
+  photo,
+  photoOn,
+  headingStyle,
+}: {
+  data: ResumeData;
+  fmt: DateFormat;
+  photo: string | null;
+  photoOn: boolean;
+  headingStyle?: CSSProperties;
+}) {
+  const h =
+    "mb-1.5 border-b border-black pb-1 text-[13px] font-bold uppercase tracking-[0.18em] text-black";
+  const contactRows: { icon: React.ReactNode; value: string }[] = [
+    { icon: <Phone className="h-3.5 w-3.5 shrink-0" />, value: data.phone },
+    { icon: <Mail className="h-3.5 w-3.5 shrink-0" />, value: data.email },
+    { icon: <MapPin className="h-3.5 w-3.5 shrink-0" />, value: data.location },
+    { icon: <Globe className="h-3.5 w-3.5 shrink-0" />, value: data.website },
+    { icon: <Link2 className="h-3.5 w-3.5 shrink-0" />, value: data.linkedin },
+  ].filter((r) => r.value.trim());
+  const acadItems = (data.academicExperience ?? []).filter(hasAcademicExperienceContent);
+  const half = Math.ceil(acadItems.length / 2);
+  const acadCell = (items: AcademicExperienceItem[]) => (
+    <div className="space-y-4">
+      {items.map((e) => {
+        const range = formatRange(e.start, e.end, false, fmt);
+        return (
+          <div key={e.id} className="break-inside-avoid">
+            <p className="font-bold">{e.title || "Academic Experience"}</p>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+              <p className="text-[12.5px]">{e.org}</p>
+              {range ? (
+                <span className="bg-black px-2 py-0.5 text-[10px] font-bold text-white">{range}</span>
+              ) : null}
+            </div>
+            {bulletList(e.bullets).length > 0 && (
+              <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[12.5px] leading-relaxed">
+                {bulletList(e.bullets).map((b, i) => (
+                  <li key={i}>{b}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+  return (
+    <div className="text-black">
+      <header className="flex items-start gap-6">
+        <PhotoSlot photo={photo} photoOn={photoOn} className="h-[140px] w-[110px] shrink-0" rounded="rounded-none" />
+        <div className="pt-3">
+          <h1
+            className="text-[30px] font-bold uppercase leading-tight tracking-[0.08em] text-black"
+            style={headingStyle}
+          >
+            {data.fullName || "Your Name"}
+          </h1>
+          {data.title && (
+            <p className="mt-2 inline-block bg-black px-4 py-1 text-[13px] font-bold uppercase tracking-[0.2em] text-white">
+              {data.title}
+            </p>
+          )}
+        </div>
+      </header>
+      <div className="mt-6 flex gap-6">
+        <div className="w-[42%] shrink-0 space-y-5 border-r border-black pr-5">
+          <SummarySection data={data} headingCls={h} headingStyle={headingStyle} label="About Me" />
+          <SkillsSection data={data} headingCls={h} headingStyle={headingStyle} showBars />
+          <LanguagesSection data={data} headingCls={h} headingStyle={headingStyle} showBars />
+        </div>
+        <div className="min-w-0 flex-1 space-y-5">
+          {contactRows.length > 0 && (
+            <section className="break-inside-avoid">
+              <h2 className={h} style={headingStyle}>
+                Contact
+              </h2>
+              <div className="space-y-1.5 text-[12.5px] leading-relaxed">
+                {contactRows.map((r, i) => (
+                  <p key={i} className="flex items-start gap-2 break-words">
+                    <span className="mt-0.5">{r.icon}</span>
+                    {r.value}
+                  </p>
+                ))}
+              </div>
+            </section>
+          )}
+          <EducationSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} badge />
+        </div>
+      </div>
+      <div className="mt-6 space-y-4">
+        <ExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+      </div>
+      {acadItems.length > 0 && (
+        <div className="mt-6">
+          <h2 className="mb-3 text-center text-[15px] font-bold uppercase tracking-[0.2em] text-black" style={headingStyle}>
+            Academic Experience
+          </h2>
+          <div className="flex gap-6">
+            <div className="w-1/2 shrink-0 border-r border-black pr-5">{acadCell(acadItems.slice(0, half))}</div>
+            <div className="min-w-0 flex-1">{acadCell(acadItems.slice(half))}</div>
+          </div>
+        </div>
+      )}
+      <div className="mt-6">
+        <ReferencesSection data={data} headingCls={h} headingStyle={headingStyle} centered label="Reference" />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- Executive Dark Header (new)
+// A dark header band (the theme's dark accent) holding a photo, white name,
+// title and contact line, then a single clean column. Skills and languages
+// are listed one per line with proficiency bars.
+function ExecutiveDarkTemplate({
+  data,
+  fmt,
+  photo,
+  photoOn,
+  headingStyle,
+}: {
+  data: ResumeData;
+  fmt: DateFormat;
+  photo: string | null;
+  photoOn: boolean;
+  headingStyle?: CSSProperties;
+}) {
+  const h =
+    "mb-1.5 border-b-2 border-[var(--resume-accent)] pb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--resume-accent-dark)]";
+  return (
+    <div className="text-slate-800">
+      <header className="-mx-8 -mt-10 bg-[var(--resume-accent-dark)] px-8 pb-6 pt-10 text-white sm:-mx-10 sm:px-10">
+        <div className="flex items-start gap-5">
+          <PhotoSlot photo={photo} photoOn={photoOn} className="h-20 w-20 ring-2 ring-white/70" />
+          <div>
+            <h1 className="text-[28px] font-bold leading-tight" style={headingStyle}>
+              {data.fullName || "Your Name"}
+            </h1>
+            {data.title && <p className="mt-0.5 text-[14px] font-semibold text-white/90">{data.title}</p>}
+            <div className="mt-1 text-[11.5px] text-white/80">
+              <ContactLine data={data} />
+            </div>
+          </div>
+        </div>
+      </header>
+      <div className="mt-5 space-y-4">
+        <SummarySection data={data} headingCls={h} headingStyle={headingStyle} />
+        <ExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <AcademicExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <EducationSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <SkillsSection data={data} headingCls={h} headingStyle={headingStyle} showBars />
+        <LanguagesSection data={data} headingCls={h} headingStyle={headingStyle} showBars />
+        <ReferencesSection data={data} headingCls={h} headingStyle={headingStyle} />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- Creative Portfolio (new)
+// A tinted sidebar (the theme's soft colour) with a round photo, contact,
+// and skill/language bars; a bright main column for the rest. Distinct from
+// Fresh Graduate (solid accent sidebar, white text) and Corporate Navy
+// (dark sidebar): here the sidebar is light and the headings are colourful.
+function CreativePortfolioTemplate({
+  data,
+  fmt,
+  photo,
+  photoOn,
+  headingStyle,
+}: {
+  data: ResumeData;
+  fmt: DateFormat;
+  photo: string | null;
+  photoOn: boolean;
+  headingStyle?: CSSProperties;
+}) {
+  const h =
+    "mb-1.5 border-b-2 border-[var(--resume-accent)] pb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--resume-accent-dark)]";
+  const sideH =
+    "mb-1.5 border-b border-[var(--resume-accent)] pb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--resume-accent-dark)]";
+  return (
+    <div className="flex text-slate-800">
+      <aside className="-my-10 -ml-8 flex w-[35%] shrink-0 flex-col items-center bg-[var(--resume-accent-soft)] px-5 py-10 sm:-ml-10">
+        <PhotoSlot photo={photo} photoOn={photoOn} className="h-24 w-24 ring-2 ring-[var(--resume-accent)]" />
+        <div className="mt-5 w-full space-y-4 text-[12px] leading-relaxed">
+          <div>
+            <h2 className={sideH}>Contact</h2>
+            <div className="space-y-0.5 break-words">
+              {[data.email, data.phone, data.location, data.website, data.linkedin]
+                .filter((x) => x.trim())
+                .map((x, i) => (
+                  <p key={i}>{x}</p>
+                ))}
+            </div>
+          </div>
+          <SkillsSection data={data} headingCls={sideH} headingStyle={headingStyle} showBars />
+          <LanguagesSection data={data} headingCls={sideH} headingStyle={headingStyle} showBars />
+        </div>
+      </aside>
+      <div className="min-w-0 flex-1 space-y-4 pl-6">
+        <header>
+          <h1 className="text-[26px] font-bold leading-tight text-[var(--resume-accent-dark)]" style={headingStyle}>
+            {data.fullName || "Your Name"}
+          </h1>
+          {data.title && <p className="text-[13px] font-semibold text-[var(--resume-accent)]">{data.title}</p>}
+          <hr className="mt-2 border-[var(--resume-accent)]" />
+        </header>
+        <SummarySection data={data} headingCls={h} headingStyle={headingStyle} />
+        <ExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <EducationSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <AcademicExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <ReferencesSection data={data} headingCls={h} headingStyle={headingStyle} />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- Academic Research (new)
+// Centred serif header with a small square photo, hairline rules, and
+// Education plus Academic Experience promoted above work experience.
+// Plain one-per-line skills and languages — no bars, no colour blocks.
+function AcademicTemplate({
+  data,
+  fmt,
+  photo,
+  photoOn,
+  headingStyle,
+}: {
+  data: ResumeData;
+  fmt: DateFormat;
+  photo: string | null;
+  photoOn: boolean;
+  headingStyle?: CSSProperties;
+}) {
+  const h =
+    "mb-1.5 border-b border-slate-400 pb-1 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-900";
+  return (
+    <div className="space-y-4 text-slate-800">
+      <header className="text-center">
+        <div className="mb-2 flex justify-center"><PhotoSlot photo={photo} photoOn={photoOn} className="h-20 w-20" rounded="rounded-none" /></div>
+        <h1 className="text-[26px] font-bold leading-tight text-slate-900" style={headingStyle}>
+          {data.fullName || "Your Name"}
+        </h1>
+        {data.title && <p className="text-[13px] italic text-slate-700">{data.title}</p>}
+        <div className="mt-1 text-[11.5px] text-slate-500">
+          <ContactLine data={data} />
+        </div>
+        <hr className="mt-3 border-t-2 border-slate-900" />
+      </header>
+      <SummarySection data={data} headingCls={h} headingStyle={headingStyle} />
+      <EducationSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+      <AcademicExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+      <ExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+      <SkillsSection data={data} headingCls={h} headingStyle={headingStyle} />
+      <LanguagesSection data={data} headingCls={h} headingStyle={headingStyle} />
+      <ReferencesSection data={data} headingCls={h} headingStyle={headingStyle} />
     </div>
   );
 }
@@ -648,6 +1107,7 @@ export function ResumePreview({
   template,
   dateFormat,
   photo,
+  photoOn,
   fontId,
   themeId,
 }: {
@@ -655,6 +1115,8 @@ export function ResumePreview({
   template: ResumeTemplateId;
   dateFormat: DateFormat;
   photo: string | null;
+  /** True when the user switched the photo on (even if none uploaded yet). */
+  photoOn: boolean;
   /** null = the template's default font. */
   fontId: string | null;
   themeId: string;
@@ -684,16 +1146,20 @@ export function ResumePreview({
         } as CSSProperties
       }
     >
-      {template === "modern" && <ModernTemplate data={data} fmt={dateFormat} photo={photo} headingStyle={headingStyle} />}
-      {template === "classic" && <ClassicTemplate data={data} fmt={dateFormat} photo={photo} headingStyle={headingStyle} />}
-      {template === "minimal" && <MinimalTemplate data={data} fmt={dateFormat} photo={photo} headingStyle={headingStyle} />}
+      {template === "modern" && <ModernTemplate data={data} fmt={dateFormat} photo={photo} photoOn={photoOn} headingStyle={headingStyle} />}
+      {template === "classic" && <ClassicTemplate data={data} fmt={dateFormat} photo={photo} photoOn={photoOn} headingStyle={headingStyle} />}
+      {template === "minimal" && <MinimalTemplate data={data} fmt={dateFormat} photo={photo} photoOn={photoOn} headingStyle={headingStyle} />}
       {template === "ats" && <AtsTemplate data={data} fmt={dateFormat} photo={photo} />}
-      {template === "two-column" && <TwoColumnTemplate data={data} fmt={dateFormat} headingStyle={headingStyle} />}
+      {template === "two-column" && <TwoColumnTemplate data={data} fmt={dateFormat} photo={photo} photoOn={photoOn} headingStyle={headingStyle} />}
       {template === "fresh-grad" && <FreshGradTemplate data={data} fmt={dateFormat} photo={photo} headingStyle={headingStyle} />}
       {template === "navy-sidebar" && <NavySidebarTemplate data={data} fmt={dateFormat} photo={photo} headingStyle={headingStyle} />}
-      {template === "pastel" && <PastelTemplate data={data} fmt={dateFormat} photo={photo} headingStyle={headingStyle} />}
-      {template === "bold" && <BoldTemplate data={data} fmt={dateFormat} photo={photo} headingStyle={headingStyle} />}
-      {template === "simple" && <SimpleTemplate data={data} fmt={dateFormat} headingStyle={headingStyle} />}
+      {template === "pastel" && <PastelTemplate data={data} fmt={dateFormat} photo={photo} photoOn={photoOn} headingStyle={headingStyle} />}
+      {template === "bold" && <BoldTemplate data={data} fmt={dateFormat} photo={photo} photoOn={photoOn} headingStyle={headingStyle} />}
+      {template === "simple" && <SimpleTemplate data={data} fmt={dateFormat} photo={photo} photoOn={photoOn} headingStyle={headingStyle} />}
+      {template === "umer-classic" && <UmerClassicTemplate data={data} fmt={dateFormat} photo={photo} photoOn={photoOn} headingStyle={headingStyle} />}
+      {template === "executive-dark" && <ExecutiveDarkTemplate data={data} fmt={dateFormat} photo={photo} photoOn={photoOn} headingStyle={headingStyle} />}
+      {template === "creative-portfolio" && <CreativePortfolioTemplate data={data} fmt={dateFormat} photo={photo} photoOn={photoOn} headingStyle={headingStyle} />}
+      {template === "academic" && <AcademicTemplate data={data} fmt={dateFormat} photo={photo} photoOn={photoOn} headingStyle={headingStyle} />}
     </div>
   );
 }

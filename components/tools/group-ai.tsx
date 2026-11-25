@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Dropzone, FileList, ProcessButton, ResultCard, ErrorNote, OptionLabel, selectCls } from "@/components/tool-ui";
+import { TOOL_MAP } from "@/lib/tools";
 import { downloadBytes, downloadBlob, fileBytes, formatBytes } from "@/lib/pdf-utils";
 import { extractPagesText, renderTextPagesToPdf } from "@/lib/text-tools";
 import { summarizeText, translateText, langName } from "@/lib/edit-ai-helpers";
@@ -95,8 +96,8 @@ export function AiSummarizerTool() {
       <Dropzone accept="application/pdf,.pdf" onFiles={add} hint="One PDF file" />
       <FileList files={files} onRemove={remove} />
       <div className="mt-4 max-w-xs">
-        <OptionLabel>Summary length</OptionLabel>
-        <select className={selectCls} value={length} onChange={(e) => setLength(e.target.value as typeof length)}>
+        <OptionLabel htmlFor="ai-summary-length">Summary length</OptionLabel>
+        <select id="ai-summary-length" className={selectCls} value={length} onChange={(e) => setLength(e.target.value as typeof length)}>
           <option value="short">Short — about 5 sentences</option>
           <option value="medium">Medium — about 8 sentences</option>
           <option value="long">Long — about 12 sentences</option>
@@ -228,20 +229,25 @@ export function TranslatePdfTool() {
         document&apos;s text — unlike our other tools — does leave your device for the translation step.
         LibreTranslate&apos;s hosted service now requires a paid API key, so it is not used.
       </p>
-      <Dropzone accept="application/pdf,.pdf" onFiles={add} hint="One PDF file" />
+      <Dropzone
+        accept="application/pdf,.pdf"
+        onFiles={add}
+        hint="One PDF file"
+        privacyNote={TOOL_MAP["translate-pdf"].remoteNote}
+      />
       <FileList files={files} onRemove={remove} />
       <div className="mt-4 grid max-w-lg gap-3 sm:grid-cols-2">
         <div>
-          <OptionLabel>From</OptionLabel>
-          <select className={selectCls} value={source} onChange={(e) => setSource(e.target.value)}>
+          <OptionLabel htmlFor="translate-from">From</OptionLabel>
+          <select id="translate-from" className={selectCls} value={source} onChange={(e) => setSource(e.target.value)}>
             {SOURCE_LANGS.map((l) => (
               <option key={l.code} value={l.code}>{l.name}</option>
             ))}
           </select>
         </div>
         <div>
-          <OptionLabel>To</OptionLabel>
-          <select className={selectCls} value={target} onChange={(e) => setTarget(e.target.value)}>
+          <OptionLabel htmlFor="translate-to">To</OptionLabel>
+          <select id="translate-to" className={selectCls} value={target} onChange={(e) => setTarget(e.target.value)}>
             {TARGET_LANGS.map((l) => (
               <option key={l.code} value={l.code}>{l.name}</option>
             ))}

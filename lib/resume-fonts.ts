@@ -63,6 +63,10 @@ export const TEMPLATE_DEFAULT_FONTS: Record<ResumeTemplateId, string> = {
   pastel: "lora",
   bold: "montserrat",
   simple: "garamond",
+  "umer-classic": "times-new-roman",
+  "executive-dark": "montserrat",
+  "creative-portfolio": "poppins",
+  academic: "garamond",
 };
 
 export interface ResumeTheme {

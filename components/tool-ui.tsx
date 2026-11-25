@@ -9,11 +9,17 @@ export function Dropzone({
   multiple,
   onFiles,
   hint,
+  privacyNote,
 }: {
   accept: string;
   multiple?: boolean;
   onFiles: (files: File[]) => void;
   hint: string;
+  /**
+   * If set, shown instead of the "files stay on your device" line — for
+   * tools that send something to a remote service (e.g. Translate).
+   */
+  privacyNote?: string;
 }) {
   const [drag, setDrag] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -63,7 +69,8 @@ export function Dropzone({
       </p>
       <p className="mt-1 text-sm text-slate-500">{hint}</p>
       <p className="mt-2 text-xs text-slate-400">
-        Files stay on your device — they are processed in your browser and never uploaded.
+        {privacyNote ??
+          "Files stay on your device — they are processed in your browser and never uploaded."}
       </p>
     </div>
   );
@@ -218,8 +225,12 @@ export function LimitsNote({ text }: { text: string }) {
   );
 }
 
-export function OptionLabel({ children }: { children: React.ReactNode }) {
-  return <span className="mb-1.5 block text-sm font-semibold text-slate-800">{children}</span>;
+export function OptionLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
+  return (
+    <label htmlFor={htmlFor} className="mb-1.5 block text-sm font-semibold text-slate-800">
+      {children}
+    </label>
+  );
 }
 
 export const selectCls =

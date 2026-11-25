@@ -29,7 +29,7 @@ export default function Home() {
                 name: "PDF World",
                 url: `${SITE_URL}/`,
                 description:
-                  "Free PDF tools that run in your browser, plus a free resume builder. Merge, split, compress, convert and secure PDF files without uploading them anywhere.",
+                  "Free PDF tools that run in your browser, plus a free resume builder and student calculators. Merge, split, compress, convert and secure PDF files without uploading them anywhere.",
               },
               {
                 "@type": "SoftwareApplication",
@@ -38,7 +38,7 @@ export default function Home() {
                 operatingSystem: "Web browser",
                 offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
                 description:
-                  "Free PDF tools (merge, split, compress, convert, protect, OCR and more) and a resume builder, all running in the browser.",
+                  "Free PDF tools (merge, split, compress, convert, protect, OCR and more), a resume builder and student calculators, all running in the browser.",
               },
             ],
           }),
@@ -121,7 +121,7 @@ export default function Home() {
               </span>
               <span className="mt-2 block font-display text-2xl font-bold">Resume Builder</span>
               <span className="mt-1 block text-sm leading-relaxed text-teal-100">
-                Four original templates, including an ATS-friendly one, with a live preview and PDF &amp;
+                Fourteen original templates, including an ATS-friendly one, with a live preview and PDF &amp;
                 Word export. Your details stay in your browser — nothing is uploaded.
               </span>
             </span>
@@ -137,7 +137,7 @@ export default function Home() {
         <Reveal>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <h2 className="font-display text-2xl font-bold text-slate-900 sm:text-3xl">
-              {query ? `Results for “${query}”` : "All PDF tools"}
+              {query ? `Results for “${query}”` : "All tools"}
             </h2>
             <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by category">
               {(["All", ...CATEGORIES] as const).map((c) => (

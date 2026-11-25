@@ -135,16 +135,16 @@ export function JpgToPdfTool() {
       <FileList files={files} onRemove={remove} onMove={move} />
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <div>
-          <OptionLabel>Page size</OptionLabel>
-          <select className={selectCls} value={pageSize} onChange={(e) => setPageSize(e.target.value as "a4" | "letter" | "fit")}>
+          <OptionLabel htmlFor="convert-page-size">Page size</OptionLabel>
+          <select id="convert-page-size" className={selectCls} value={pageSize} onChange={(e) => setPageSize(e.target.value as "a4" | "letter" | "fit")}>
             <option value="a4">A4</option>
             <option value="letter">Letter (US)</option>
             <option value="fit">Fit each image (page fits the image, max A4)</option>
           </select>
         </div>
         <div>
-          <OptionLabel>Margin (points)</OptionLabel>
-          <input className={inputCls} type="number" min={0} max={100} value={margin} onChange={(e) => setMargin(Math.max(0, Number(e.target.value) || 0))} />
+          <OptionLabel htmlFor="convert-margin-points">Margin (points)</OptionLabel>
+          <input id="convert-margin-points" className={inputCls} type="number" min={0} max={100} value={margin} onChange={(e) => setMargin(Math.max(0, Number(e.target.value) || 0))} />
         </div>
       </div>
       <ProcessButton busy={r.busy} disabled={files.length === 0} label="Convert to PDF" busyLabel="Converting…" onClick={run} />
@@ -203,15 +203,15 @@ export function PdfToJpgTool() {
       <FileList files={files} onRemove={remove} />
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <div>
-          <OptionLabel>Image quality</OptionLabel>
-          <select className={selectCls} value={quality} onChange={(e) => setQuality(e.target.value as "standard" | "high")}>
+          <OptionLabel htmlFor="convert-image-quality">Image quality</OptionLabel>
+          <select id="convert-image-quality" className={selectCls} value={quality} onChange={(e) => setQuality(e.target.value as "standard" | "high")}>
             <option value="standard">Standard (good for sharing)</option>
             <option value="high">High (better for printing)</option>
           </select>
         </div>
         <div>
-          <OptionLabel>Pages (optional — leave blank for all)</OptionLabel>
-          <input className={inputCls} value={pages} onChange={(e) => setPages(e.target.value)} placeholder="e.g. 1-3, 5" />
+          <OptionLabel htmlFor="convert-pages-optional-leave-blank-for-all">Pages (optional — leave blank for all)</OptionLabel>
+          <input id="convert-pages-optional-leave-blank-for-all" className={inputCls} value={pages} onChange={(e) => setPages(e.target.value)} placeholder="e.g. 1-3, 5" />
         </div>
       </div>
       <ProcessButton busy={r.busy} disabled={files.length === 0} label="Convert to JPG" busyLabel="Converting…" onClick={run} />
@@ -274,24 +274,24 @@ export function RotateTool() {
       <FileList files={files} onRemove={remove} />
       <div className="mt-5 grid gap-4 sm:grid-cols-3">
         <div>
-          <OptionLabel>Rotate by</OptionLabel>
-          <select className={selectCls} value={degrees} onChange={(e) => setDegrees(Number(e.target.value) as 90 | 180 | 270)}>
+          <OptionLabel htmlFor="convert-rotate-by">Rotate by</OptionLabel>
+          <select id="convert-rotate-by" className={selectCls} value={degrees} onChange={(e) => setDegrees(Number(e.target.value) as 90 | 180 | 270)}>
             <option value={90}>90° clockwise</option>
             <option value={180}>180°</option>
             <option value={270}>270° clockwise</option>
           </select>
         </div>
         <div>
-          <OptionLabel>Apply to</OptionLabel>
-          <select className={selectCls} value={scope} onChange={(e) => setScope(e.target.value as "all" | "pages")}>
+          <OptionLabel htmlFor="convert-apply-to">Apply to</OptionLabel>
+          <select id="convert-apply-to" className={selectCls} value={scope} onChange={(e) => setScope(e.target.value as "all" | "pages")}>
             <option value="all">All pages</option>
             <option value="pages">Specific pages</option>
           </select>
         </div>
         {scope === "pages" && (
           <div>
-            <OptionLabel>Pages (e.g. 1, 3-5)</OptionLabel>
-            <input className={inputCls} value={pages} onChange={(e) => setPages(e.target.value)} placeholder="1, 3-5" />
+            <OptionLabel htmlFor="convert-pages-e-g-1-3-5">Pages (e.g. 1, 3-5)</OptionLabel>
+            <input id="convert-pages-e-g-1-3-5" className={inputCls} value={pages} onChange={(e) => setPages(e.target.value)} placeholder="1, 3-5" />
           </div>
         )}
       </div>

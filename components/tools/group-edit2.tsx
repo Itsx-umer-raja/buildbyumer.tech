@@ -193,31 +193,31 @@ export function EditPdfTool() {
       {pageCount > 0 && (
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <div>
-            <OptionLabel>Page (1–{pageCount})</OptionLabel>
-            <input className={inputCls} type="number" min={1} max={pageCount} value={page} onChange={(e) => setPage(Number(e.target.value) || 1)} />
+            <OptionLabel htmlFor="edit2-annotation-page">Page (1–{pageCount})</OptionLabel>
+            <input id="edit2-annotation-page" className={inputCls} type="number" min={1} max={pageCount} value={page} onChange={(e) => setPage(Number(e.target.value) || 1)} />
           </div>
           <div>
-            <OptionLabel>Annotation type</OptionLabel>
-            <select className={selectCls} value={kind} onChange={(e) => setKind(e.target.value as "text" | "highlight")}>
+            <OptionLabel htmlFor="edit2-annotation-type">Annotation type</OptionLabel>
+            <select id="edit2-annotation-type" className={selectCls} value={kind} onChange={(e) => setKind(e.target.value as "text" | "highlight")}>
               <option value="text">Text note</option>
               <option value="highlight">Highlight band</option>
             </select>
           </div>
           <div className="sm:col-span-2">
-            <OptionLabel>Text</OptionLabel>
-            <input className={inputCls} value={text} onChange={(e) => setText(e.target.value)} />
+            <OptionLabel htmlFor="edit2-text">Text</OptionLabel>
+            <input id="edit2-text" className={inputCls} value={text} onChange={(e) => setText(e.target.value)} />
           </div>
           <div>
-            <OptionLabel>Horizontal position ({xPct}% from left){kind === "highlight" ? " — highlight band starts here" : ""}</OptionLabel>
-            <input type="range" min={0} max={90} value={xPct} onChange={(e) => setXPct(Number(e.target.value))} className="w-full" />
+            <OptionLabel htmlFor="edit2-x-position">Horizontal position ({xPct}% from left){kind === "highlight" ? " — highlight band starts here" : ""}</OptionLabel>
+            <input id="edit2-x-position" type="range" min={0} max={90} value={xPct} onChange={(e) => setXPct(Number(e.target.value))} className="w-full" />
           </div>
           <div>
-            <OptionLabel>Vertical position ({yPct}% from bottom)</OptionLabel>
-            <input type="range" min={5} max={95} value={yPct} onChange={(e) => setYPct(Number(e.target.value))} className="w-full" />
+            <OptionLabel htmlFor="edit2-y-position">Vertical position ({yPct}% from bottom)</OptionLabel>
+            <input id="edit2-y-position" type="range" min={5} max={95} value={yPct} onChange={(e) => setYPct(Number(e.target.value))} className="w-full" />
           </div>
           <div>
-            <OptionLabel>Font size ({size} pt)</OptionLabel>
-            <input type="range" min={8} max={32} value={size} onChange={(e) => setSize(Number(e.target.value))} className="w-full" />
+            <OptionLabel htmlFor="edit2-annotation-font-size">Font size ({size} pt)</OptionLabel>
+            <input id="edit2-annotation-font-size" type="range" min={8} max={32} value={size} onChange={(e) => setSize(Number(e.target.value))} className="w-full" />
           </div>
         </div>
       )}
@@ -351,12 +351,12 @@ export function RedactTool() {
       <FileList files={files} onRemove={remove} />
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <div>
-          <OptionLabel>Text to redact (exact words, case-insensitive)</OptionLabel>
-          <input className={inputCls} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="e.g. 555-1234" />
+          <OptionLabel htmlFor="edit2-text-to-redact-exact-words-case-insensitive">Text to redact (exact words, case-insensitive)</OptionLabel>
+          <input id="edit2-text-to-redact-exact-words-case-insensitive" className={inputCls} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="e.g. 555-1234" />
         </div>
         <div>
-          <OptionLabel>Whole pages to black out (optional, e.g. 2, 5-6)</OptionLabel>
-          <input className={inputCls} value={pages} onChange={(e) => setPages(e.target.value)} placeholder="Leave blank for none" />
+          <OptionLabel htmlFor="edit2-whole-pages-to-black-out-optional-e-g-2-5-6">Whole pages to black out (optional, e.g. 2, 5-6)</OptionLabel>
+          <input id="edit2-whole-pages-to-black-out-optional-e-g-2-5-6" className={inputCls} value={pages} onChange={(e) => setPages(e.target.value)} placeholder="Leave blank for none" />
         </div>
       </div>
       <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm leading-relaxed text-slate-700">
@@ -425,32 +425,32 @@ export function CropTool() {
       <FileList files={files} onRemove={remove} />
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <div>
-          <OptionLabel>Left margin (%)</OptionLabel>
-          <input className={inputCls} type="number" min={0} max={90} value={left} onChange={(e) => setLeft(Math.max(0, Number(e.target.value) || 0))} />
+          <OptionLabel htmlFor="edit2-left-margin">Left margin (%)</OptionLabel>
+          <input id="edit2-left-margin" className={inputCls} type="number" min={0} max={90} value={left} onChange={(e) => setLeft(Math.max(0, Number(e.target.value) || 0))} />
         </div>
         <div>
-          <OptionLabel>Right margin (%)</OptionLabel>
-          <input className={inputCls} type="number" min={0} max={90} value={right} onChange={(e) => setRight(Math.max(0, Number(e.target.value) || 0))} />
+          <OptionLabel htmlFor="edit2-right-margin">Right margin (%)</OptionLabel>
+          <input id="edit2-right-margin" className={inputCls} type="number" min={0} max={90} value={right} onChange={(e) => setRight(Math.max(0, Number(e.target.value) || 0))} />
         </div>
         <div>
-          <OptionLabel>Top margin (%)</OptionLabel>
-          <input className={inputCls} type="number" min={0} max={90} value={top} onChange={(e) => setTop(Math.max(0, Number(e.target.value) || 0))} />
+          <OptionLabel htmlFor="edit2-top-margin">Top margin (%)</OptionLabel>
+          <input id="edit2-top-margin" className={inputCls} type="number" min={0} max={90} value={top} onChange={(e) => setTop(Math.max(0, Number(e.target.value) || 0))} />
         </div>
         <div>
-          <OptionLabel>Bottom margin (%)</OptionLabel>
-          <input className={inputCls} type="number" min={0} max={90} value={bottom} onChange={(e) => setBottom(Math.max(0, Number(e.target.value) || 0))} />
+          <OptionLabel htmlFor="edit2-bottom-margin">Bottom margin (%)</OptionLabel>
+          <input id="edit2-bottom-margin" className={inputCls} type="number" min={0} max={90} value={bottom} onChange={(e) => setBottom(Math.max(0, Number(e.target.value) || 0))} />
         </div>
         <div>
-          <OptionLabel>Apply to</OptionLabel>
-          <select className={selectCls} value={scope} onChange={(e) => setScope(e.target.value as "all" | "pages")}>
+          <OptionLabel htmlFor="edit2-apply-to">Apply to</OptionLabel>
+          <select id="edit2-apply-to" className={selectCls} value={scope} onChange={(e) => setScope(e.target.value as "all" | "pages")}>
             <option value="all">All pages</option>
             <option value="pages">Specific pages</option>
           </select>
         </div>
         {scope === "pages" && (
           <div>
-            <OptionLabel>Pages (e.g. 1, 3-5)</OptionLabel>
-            <input className={inputCls} value={pages} onChange={(e) => setPages(e.target.value)} placeholder="1, 3-5" />
+            <OptionLabel htmlFor="edit2-pages-e-g-1-3-5">Pages (e.g. 1, 3-5)</OptionLabel>
+            <input id="edit2-pages-e-g-1-3-5" className={inputCls} value={pages} onChange={(e) => setPages(e.target.value)} placeholder="1, 3-5" />
           </div>
         )}
       </div>
@@ -521,16 +521,16 @@ export function FormsTool() {
           <p className="text-sm text-slate-600">Found {fields.length} fillable field(s):</p>
           {fields.map((f, i) => (
             <div key={f.name}>
-              <OptionLabel>
+              <OptionLabel htmlFor={`form-field-${i}`}>
                 {f.name} <span className="font-normal text-slate-500">({f.type})</span>
               </OptionLabel>
               {f.type === "checkbox" ? (
-                <select className={selectCls} value={f.value} onChange={(e) => setValue(i, e.target.value)}>
+                <select id={`form-field-${i}`} className={selectCls} value={f.value} onChange={(e) => setValue(i, e.target.value)}>
                   <option value="no">Unchecked</option>
                   <option value="yes">Checked</option>
                 </select>
               ) : f.type === "dropdown" ? (
-                <select className={selectCls} value={f.value} onChange={(e) => setValue(i, e.target.value)}>
+                <select id={`form-field-${i}`} className={selectCls} value={f.value} onChange={(e) => setValue(i, e.target.value)}>
                   <option value="">— leave blank —</option>
                   {(f.options ?? []).map((o) => (
                     <option key={o} value={o}>
@@ -556,7 +556,7 @@ export function FormsTool() {
                   {(f.options ?? []).length === 0 && <span className="text-sm text-slate-500">This radio group has no options.</span>}
                 </div>
               ) : f.type === "text" ? (
-                <input className={inputCls} value={f.value} onChange={(e) => setValue(i, e.target.value)} placeholder={`Enter ${f.name}`} />
+                <input id={`form-field-${i}`} className={inputCls} value={f.value} onChange={(e) => setValue(i, e.target.value)} placeholder={`Enter ${f.name}`} />
               ) : (
                 <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                   This field ({f.type}) cannot be filled here — it is left unchanged in the saved file.
@@ -670,12 +670,12 @@ export function PdfATool() {
       <FileList files={files} onRemove={remove} />
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <div>
-          <OptionLabel>Title (optional)</OptionLabel>
-          <input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Document title" />
+          <OptionLabel htmlFor="edit2-title-optional">Title (optional)</OptionLabel>
+          <input id="edit2-title-optional" className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Document title" />
         </div>
         <div>
-          <OptionLabel>Author (optional)</OptionLabel>
-          <input className={inputCls} value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="Author name" />
+          <OptionLabel htmlFor="edit2-author-optional">Author (optional)</OptionLabel>
+          <input id="edit2-author-optional" className={inputCls} value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="Author name" />
         </div>
       </div>
       <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm leading-relaxed text-slate-700">
@@ -820,19 +820,19 @@ export function SignTool() {
         <div className="mt-5 space-y-4">
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
-              <OptionLabel>Page (1–{pageCount})</OptionLabel>
-              <input className={inputCls} type="number" min={1} max={pageCount} value={page} onChange={(e) => setPage(Number(e.target.value) || 1)} />
+              <OptionLabel htmlFor="edit2-sign-page">Page (1–{pageCount})</OptionLabel>
+              <input id="edit2-sign-page" className={inputCls} type="number" min={1} max={pageCount} value={page} onChange={(e) => setPage(Number(e.target.value) || 1)} />
             </div>
             <div>
-              <OptionLabel>Signature</OptionLabel>
-              <select className={selectCls} value={mode} onChange={(e) => setMode(e.target.value as "draw" | "type")}>
+              <OptionLabel htmlFor="edit2-signature">Signature</OptionLabel>
+              <select id="edit2-signature" className={selectCls} value={mode} onChange={(e) => setMode(e.target.value as "draw" | "type")}>
                 <option value="draw">Draw it</option>
                 <option value="type">Type my name</option>
               </select>
             </div>
             <div>
-              <OptionLabel>Position</OptionLabel>
-              <select className={selectCls} value={position} onChange={(e) => setPosition(e.target.value as "bottom-right" | "bottom-left" | "bottom-centre")}>
+              <OptionLabel htmlFor="edit2-position">Position</OptionLabel>
+              <select id="edit2-position" className={selectCls} value={position} onChange={(e) => setPosition(e.target.value as "bottom-right" | "bottom-left" | "bottom-centre")}>
                 <option value="bottom-right">Bottom right</option>
                 <option value="bottom-left">Bottom left</option>
                 <option value="bottom-centre">Bottom centre</option>
@@ -844,6 +844,7 @@ export function SignTool() {
               <OptionLabel>Draw your signature</OptionLabel>
               <canvas
                 ref={canvasRef}
+                aria-label="Draw your signature here"
                 width={600}
                 height={180}
                 onPointerDown={startDraw}
@@ -858,13 +859,13 @@ export function SignTool() {
             </div>
           ) : (
             <div>
-              <OptionLabel>Your name (rendered as a script signature)</OptionLabel>
-              <input className={inputCls} value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="e.g. Alex Morgan" />
+              <OptionLabel htmlFor="edit2-your-name-rendered-as-a-script-signature">Your name (rendered as a script signature)</OptionLabel>
+              <input id="edit2-your-name-rendered-as-a-script-signature" className={inputCls} value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="e.g. Alex Morgan" />
             </div>
           )}
           <div>
-            <OptionLabel>Signature width ({width} pt)</OptionLabel>
-            <input type="range" min={90} max={300} value={width} onChange={(e) => setWidth(Number(e.target.value))} className="w-full" />
+            <OptionLabel htmlFor="edit2-signature-width">Signature width ({width} pt)</OptionLabel>
+            <input id="edit2-signature-width" type="range" min={90} max={300} value={width} onChange={(e) => setWidth(Number(e.target.value))} className="w-full" />
           </div>
         </div>
       )}

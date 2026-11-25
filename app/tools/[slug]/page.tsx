@@ -9,7 +9,7 @@ import { SITE_URL } from "@/lib/site";
 import { LimitsNote } from "@/components/tool-ui";
 
 // Tool implementations are lazy-loaded per group so a tool page only ships
-// the code for the tool being used, not all 31 tools.
+// the code for the tool being used, not all 41 tools.
 const MergeTool = dynamic(() => import("@/components/tools/group-organise").then((m) => m.MergeTool));
 const SplitTool = dynamic(() => import("@/components/tools/group-organise").then((m) => m.SplitTool));
 const CompressTool = dynamic(() => import("@/components/tools/group-organise").then((m) => m.CompressTool));
@@ -41,6 +41,16 @@ const PdfATool = dynamic(() => import("@/components/tools/group-edit2").then((m)
 const SignTool = dynamic(() => import("@/components/tools/group-edit2").then((m) => m.SignTool));
 const AiSummarizerTool = dynamic(() => import("@/components/tools/group-ai").then((m) => m.AiSummarizerTool));
 const TranslatePdfTool = dynamic(() => import("@/components/tools/group-ai").then((m) => m.TranslatePdfTool));
+const GpaCalculatorTool = dynamic(() => import("@/components/tools/group-calculators").then((m) => m.GpaCalculatorTool));
+const CgpaCalculatorTool = dynamic(() => import("@/components/tools/group-calculators").then((m) => m.CgpaCalculatorTool));
+const PercentageCalculatorTool = dynamic(() => import("@/components/tools/group-calculators").then((m) => m.PercentageCalculatorTool));
+const GradeCalculatorTool = dynamic(() => import("@/components/tools/group-calculators").then((m) => m.GradeCalculatorTool));
+const CgpaToPercentageTool = dynamic(() => import("@/components/tools/group-calculators").then((m) => m.CgpaToPercentageTool));
+const PercentageToGpaTool = dynamic(() => import("@/components/tools/group-calculators").then((m) => m.PercentageToGpaTool));
+const FinalGradeCalculatorTool = dynamic(() => import("@/components/tools/group-calculators").then((m) => m.FinalGradeCalculatorTool));
+const SgpaCalculatorTool = dynamic(() => import("@/components/tools/group-calculators").then((m) => m.SgpaCalculatorTool));
+const WeightedGradeCalculatorTool = dynamic(() => import("@/components/tools/group-calculators").then((m) => m.WeightedGradeCalculatorTool));
+const GpaToPercentageTool = dynamic(() => import("@/components/tools/group-calculators").then((m) => m.GpaToPercentageTool));
 
 export function generateStaticParams() {
   return TOOLS.map((t) => ({ slug: t.slug }));
@@ -112,12 +122,24 @@ const TOOL_COMPONENTS: Record<string, React.ComponentType> = {
   "scan-to-pdf": ScanToPdfTool,
   "ai-summarizer": AiSummarizerTool,
   "translate-pdf": TranslatePdfTool,
+  "gpa-calculator": GpaCalculatorTool,
+  "cgpa-calculator": CgpaCalculatorTool,
+  "percentage-calculator": PercentageCalculatorTool,
+  "grade-calculator": GradeCalculatorTool,
+  "cgpa-to-percentage": CgpaToPercentageTool,
+  "percentage-to-gpa": PercentageToGpaTool,
+  "final-grade-calculator": FinalGradeCalculatorTool,
+  "sgpa-calculator": SgpaCalculatorTool,
+  "weighted-grade-calculator": WeightedGradeCalculatorTool,
+  "gpa-to-percentage": GpaToPercentageTool,
 };
 
 const HOW_TO_STEPS = [
   {
     title: "Choose your file",
-    text: "Select the file — or files — the tool asks for from your device. Nothing is uploaded; the file is read in your browser.",
+    // Remote tools (Translate) send extracted text to a service; the
+    // generic "nothing is uploaded" line would be wrong for them.
+    text: "Select the file — or files — the tool asks for from your device.",
   },
   {
     title: "Adjust the settings",
@@ -126,6 +148,22 @@ const HOW_TO_STEPS = [
   {
     title: "Download the result",
     text: "Run the tool and download the finished file straight to your device. Nothing is stored afterwards.",
+  },
+];
+
+// Calculators take numbers, not files, so their how-to steps are different.
+const CALCULATOR_HOW_TO_STEPS = [
+  {
+    title: "Enter your numbers",
+    text: "Type your grades, marks or percentages into the fields. Nothing you type is uploaded — the calculation happens in your browser.",
+  },
+  {
+    title: "Check the worked example",
+    text: "Each calculator shows a worked example with the maths spelled out. Load it with one click to see how the tool works.",
+  },
+  {
+    title: "Read your result",
+    text: "Press the calculate button and read your result, with a short explanation of what it means.",
   },
 ];
 
@@ -138,6 +176,28 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
   const Icon = tool.icon;
   const related = TOOLS.filter((t) => t.category === tool.category && t.slug !== slug).slice(0, 4);
   const pageUrl = `${SITE_URL}/tools/${slug}`;
+  const isCalculator = tool.category === "Calculators";
+  // The "limits" FAQ is rendered from lib/tools.ts (the single source of
+  // truth) so it can never drift from the limits note on the page, even if
+  // the copy in lib/seo.ts goes stale.
+  const faqs = seo.faqs.map((f) =>
+    f.q.startsWith("What are the limits of") ? { ...f, a: tool.limits } : f,
+  );
+  // How-to steps: step 1 says what actually happens for remote tools, and
+  // step 2 is dropped for tools with no settings to adjust.
+  const howToSteps = isCalculator
+    ? CALCULATOR_HOW_TO_STEPS
+    : HOW_TO_STEPS.filter((step) => step.title !== "Adjust the settings" || tool.hasSettings !== false).map(
+        (step) =>
+          step.title === "Choose your file" && tool.remoteNote
+            ? {
+                ...step,
+                text: `${step.text} The file itself is never uploaded — only the text extracted from it is sent to the translation service, as stated above.`,
+              }
+            : step.title === "Choose your file"
+              ? { ...step, text: `${step.text} Nothing is uploaded; the file is read in your browser.` }
+              : step,
+      );
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -155,13 +215,13 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
         "@type": "BreadcrumbList",
         itemListElement: [
           { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
-          { "@type": "ListItem", position: 2, name: "All PDF tools", item: `${SITE_URL}/tools` },
+          { "@type": "ListItem", position: 2, name: "All tools", item: `${SITE_URL}/tools` },
           { "@type": "ListItem", position: 3, name: tool.title, item: pageUrl },
         ],
       },
       {
         "@type": "FAQPage",
-        mainEntity: seo.faqs.map((f) => ({
+        mainEntity: faqs.map((f) => ({
           "@type": "Question",
           name: f.q,
           acceptedAnswer: { "@type": "Answer", text: f.a },
@@ -208,6 +268,12 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
             <>
               <strong>Partly remote:</strong> {tool.remoteNote.replace(/^Partly remote: /, "")}
             </>
+          ) : isCalculator ? (
+            <>
+              <strong>Private by design:</strong> this calculator runs entirely in your browser.
+              The numbers you type never leave your device, and nothing is stored after you
+              leave the page.
+            </>
           ) : (
             <>
               <strong>Private by design:</strong> this tool runs entirely in your browser. Your files
@@ -226,7 +292,7 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
       <section className="mt-12">
         <h2 className="font-display text-xl font-bold text-slate-900">How to use {tool.title}</h2>
         <ol className="mt-4 space-y-3">
-          {HOW_TO_STEPS.map((step, i) => (
+          {howToSteps.map((step, i) => (
             <li key={step.title} className="flex gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-700 text-sm font-bold text-white">
                 {i + 1}
@@ -242,7 +308,7 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
       <section className="mt-12">
         <h2 className="font-display text-xl font-bold text-slate-900">Frequently asked questions</h2>
         <div className="mt-4 space-y-3">
-          {seo.faqs.map((f) => (
+          {faqs.map((f) => (
             <div key={f.q} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
               <h3 className="text-sm font-semibold text-slate-900">{f.q}</h3>
               <p className="mt-1 text-sm leading-relaxed text-slate-700">{f.a}</p>
@@ -253,7 +319,7 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
 
       {related.length > 0 && (
         <section className="mt-12">
-          <h2 className="font-display text-xl font-bold text-slate-900">More {tool.category.toLowerCase()} tools</h2>
+          <h2 className="font-display text-xl font-bold text-slate-900">More {tool.category === "AI" ? "AI" : tool.category.toLowerCase()} tools</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {related.map((t) => {
               const RelIcon = t.icon;
@@ -271,7 +337,7 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
           </div>
           <p className="mt-4 text-sm">
             <Link href="/tools" className="inline-flex items-center gap-1.5 font-medium text-teal-700 hover:underline">
-              <ArrowLeft className="h-4 w-4" /> Browse all 31 PDF tools
+              <ArrowLeft className="h-4 w-4" /> Browse all {TOOLS.length} tools
             </Link>
           </p>
         </section>

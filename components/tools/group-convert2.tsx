@@ -71,8 +71,8 @@ function baseName(f: File) {
 function PasswordField({ password, setPassword }: { password: string; setPassword: (v: string) => void }) {
   return (
     <div className="mt-5">
-      <OptionLabel>PDF password (only if the file is protected)</OptionLabel>
-      <input
+      <OptionLabel htmlFor="convert2-pdf-password-only-if-the-file-is-protected">PDF password (only if the file is protected)</OptionLabel>
+      <input id="convert2-pdf-password-only-if-the-file-is-protected"
         className={inputCls}
         type="password"
         value={password}
@@ -747,8 +747,8 @@ export function HtmlToPdfTool() {
     <div>
       <Dropzone accept="text/html,.html,.htm" onFiles={loadFile} hint="Optional: upload an .html file to load it into the editor" />
       <div className="mt-5">
-        <OptionLabel>Your HTML</OptionLabel>
-        <textarea
+        <OptionLabel htmlFor="convert2-your-html">Your HTML</OptionLabel>
+        <textarea id="convert2-your-html"
           className={`${inputCls} h-44 font-mono text-xs`}
           value={html}
           onChange={(e) => setHtml(e.target.value)}
@@ -848,8 +848,8 @@ export function ScanToPdfTool() {
       <Dropzone accept="image/jpeg,image/png,.jpg,.jpeg,.png" multiple onFiles={add} hint="JPG and PNG images — photos of pages work well" />
       <FileList files={files} onRemove={remove} />
       <div className="mt-5">
-        <OptionLabel>Page size</OptionLabel>
-        <select className={selectCls} value={pageSize} onChange={(e) => setPageSize(e.target.value as "a4" | "fit")}>
+        <OptionLabel htmlFor="convert2-page-size">Page size</OptionLabel>
+        <select id="convert2-page-size" className={selectCls} value={pageSize} onChange={(e) => setPageSize(e.target.value as "a4" | "fit")}>
           <option value="a4">A4</option>
           <option value="fit">Fit each image (page = image size)</option>
         </select>

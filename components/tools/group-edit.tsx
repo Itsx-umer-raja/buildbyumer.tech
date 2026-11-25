@@ -234,12 +234,12 @@ export function WatermarkTool() {
       {file && <FileList files={[file]} onRemove={() => setFile(null)} />}
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <div>
-          <OptionLabel>Watermark text</OptionLabel>
-          <input className={inputCls} value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. DRAFT" />
+          <OptionLabel htmlFor="edit-watermark-text">Watermark text</OptionLabel>
+          <input id="edit-watermark-text" className={inputCls} value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. DRAFT" />
         </div>
         <div>
-          <OptionLabel>Position</OptionLabel>
-          <select className={selectCls} value={position} onChange={(e) => setPosition(e.target.value as "center" | "diagonal" | "top" | "bottom")}>
+          <OptionLabel htmlFor="edit-position">Position</OptionLabel>
+          <select id="edit-position" className={selectCls} value={position} onChange={(e) => setPosition(e.target.value as "center" | "diagonal" | "top" | "bottom")}>
             <option value="diagonal">Diagonal across the page</option>
             <option value="center">Centre of the page</option>
             <option value="top">Top of the page</option>
@@ -247,12 +247,12 @@ export function WatermarkTool() {
           </select>
         </div>
         <div>
-          <OptionLabel>Opacity ({Math.round(opacity * 100)}%)</OptionLabel>
-          <input type="range" min={5} max={80} value={Math.round(opacity * 100)} onChange={(e) => setOpacity(Number(e.target.value) / 100)} className="w-full accent-teal-700" />
+          <OptionLabel htmlFor="edit-watermark-opacity">Opacity ({Math.round(opacity * 100)}%)</OptionLabel>
+          <input id="edit-watermark-opacity" type="range" min={5} max={80} value={Math.round(opacity * 100)} onChange={(e) => setOpacity(Number(e.target.value) / 100)} className="w-full accent-teal-700" />
         </div>
         <div>
-          <OptionLabel>Text size ({size} pt)</OptionLabel>
-          <input type="range" min={18} max={96} value={size} onChange={(e) => setSize(Number(e.target.value))} className="w-full accent-teal-700" />
+          <OptionLabel htmlFor="edit-watermark-size">Text size ({size} pt)</OptionLabel>
+          <input id="edit-watermark-size" type="range" min={18} max={96} value={size} onChange={(e) => setSize(Number(e.target.value))} className="w-full accent-teal-700" />
         </div>
       </div>
       <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm leading-relaxed text-slate-700">
@@ -340,8 +340,8 @@ export function PageNumbersTool() {
       {file && <FileList files={[file]} onRemove={() => setFile(null)} />}
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <div>
-          <OptionLabel>Position</OptionLabel>
-          <select className={selectCls} value={position} onChange={(e) => setPosition(e.target.value as "bottom-center" | "bottom-right" | "bottom-left" | "top-center" | "top-right")}>
+          <OptionLabel htmlFor="edit-position-2">Position</OptionLabel>
+          <select id="edit-position-2" className={selectCls} value={position} onChange={(e) => setPosition(e.target.value as "bottom-center" | "bottom-right" | "bottom-left" | "top-center" | "top-right")}>
             <option value="bottom-center">Bottom centre</option>
             <option value="bottom-right">Bottom right</option>
             <option value="bottom-left">Bottom left</option>
@@ -350,8 +350,8 @@ export function PageNumbersTool() {
           </select>
         </div>
         <div>
-          <OptionLabel>Number style</OptionLabel>
-          <select className={selectCls} value={format} onChange={(e) => setFormat(e.target.value as "n" | "page-n" | "n-of-total")}>
+          <OptionLabel htmlFor="edit-number-style">Number style</OptionLabel>
+          <select id="edit-number-style" className={selectCls} value={format} onChange={(e) => setFormat(e.target.value as "n" | "page-n" | "n-of-total")}>
             <option value="n">1, 2, 3…</option>
             <option value="page-n">Page 1, Page 2…</option>
             <option value="n-of-total">1 of 5, 2 of 5…</option>

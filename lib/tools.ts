@@ -29,9 +29,18 @@ import {
   ScanLine,
   AlignLeft,
   Languages,
+  GraduationCap,
+  Sigma,
+  Percent,
+  Award,
+  ArrowLeftRight,
+  Scale,
+  Target,
+  BookOpen,
+  TrendingUp,
 } from "lucide-react";
 
-export type ToolCategory = "Organise" | "Convert" | "Edit" | "Secure" | "AI";
+export type ToolCategory = "Organize" | "Convert" | "Edit" | "Secure" | "AI" | "Calculators";
 
 export interface ToolDef {
   id: string;
@@ -46,6 +55,12 @@ export interface ToolDef {
   limits: string;
   /** If set, replaces the "runs entirely in your browser" banner (remote processing). */
   remoteNote?: string;
+  /**
+   * False when the tool has no settings to adjust (just choose a file and
+   * run it), so the "Adjust the settings" how-to step is left out.
+   * Defaults to true.
+   */
+  hasSettings?: boolean;
 }
 
 export const TOOLS: ToolDef[] = [
@@ -55,11 +70,12 @@ export const TOOLS: ToolDef[] = [
     title: "Merge PDF",
     shortTitle: "Merge",
     description:
-      "Combine several PDF files into one document, in the order you choose. Drag pages into place before you merge.",
+      "Combine several PDF files into one document, in the order you choose. Use the up and down arrows to put the files in the order you want before you merge.",
     keywords: ["combine", "join", "join pdf", "merge pdf files", "append", "bind pdf"],
-    category: "Organise",
+    category: "Organize",
     icon: Combine,
     limits: "Merges the pages of each file in order. Encrypted PDFs cannot be merged unless unlocked first.",
+    hasSettings: false,
   },
   {
     id: "split-pdf",
@@ -69,7 +85,7 @@ export const TOOLS: ToolDef[] = [
     description:
       "Pull pages out of a PDF by page range, or split every page into its own file, downloaded as a ZIP.",
     keywords: ["split", "extract pages", "separate pdf", "divide pdf", "page ranges"],
-    category: "Organise",
+    category: "Organize",
     icon: Scissors,
     limits: "Page ranges use 1-based page numbers, e.g. 1-3, 5, 8-10. Out-of-range pages are ignored.",
   },
@@ -81,7 +97,7 @@ export const TOOLS: ToolDef[] = [
     description:
       "Shrink a PDF to a smaller file size. Light mode re-saves the file; stronger modes rebuild pages as images.",
     keywords: ["compress", "reduce pdf size", "shrink pdf", "smaller pdf", "optimise pdf"],
-    category: "Organise",
+    category: "Organize",
     icon: Minimize2,
     limits:
       "Compression is approximate and depends on the file. Stronger modes rebuild pages as images, so text is no longer selectable. If the result is larger than the original, we say so plainly.",
@@ -128,11 +144,12 @@ export const TOOLS: ToolDef[] = [
     title: "Organize PDF",
     shortTitle: "Organize",
     description:
-      "See every page as a thumbnail, drag them into a new order, and delete the pages you do not need.",
+      "See every page as a thumbnail, move pages into a new order with the arrow buttons, and delete the pages you do not need.",
     keywords: ["organize pdf", "reorder pages", "rearrange pdf", "delete pdf pages", "sort pages"],
-    category: "Organise",
+    category: "Organize",
     icon: LayoutGrid,
     limits: "Thumbnails are rendered in your browser from the file itself. Very large PDFs may take a moment to preview.",
+    hasSettings: false,
   },
   {
     id: "watermark",
@@ -274,6 +291,7 @@ export const TOOLS: ToolDef[] = [
     icon: ScanSearch,
     limits:
       "Slow on long documents, English only, and accuracy varies with scan quality. The OCR engine loads from a CDN the first time you use it.",
+    hasSettings: false,
   },
   {
     id: "edit-pdf",
@@ -313,6 +331,7 @@ export const TOOLS: ToolDef[] = [
     icon: Diff,
     limits:
       "Compares extracted text only. Differences in images, fonts or layout are not detected, and scanned PDFs need OCR first.",
+    hasSettings: false,
   },
   {
     id: "redact-pdf",
@@ -365,6 +384,7 @@ export const TOOLS: ToolDef[] = [
     icon: Wrench,
     limits:
       "Fixes some corruption only — re-saving repairs structural problems, but badly damaged files may still fail. Not a guaranteed repair.",
+    hasSettings: false,
   },
   {
     id: "pdf-to-pdfa",
@@ -446,6 +466,136 @@ export const TOOLS: ToolDef[] = [
     remoteNote:
       "Partly remote: the PDF's text is extracted in your browser, then sent to the free MyMemory translation service (api.mymemory.translated.net) so it can be translated. Only the extracted text leaves your device — the file itself is never uploaded.",
   },
+  {
+    id: "gpa-calculator",
+    slug: "gpa-calculator",
+    title: "GPA Calculator",
+    shortTitle: "GPA",
+    description:
+      "Work out your GPA on the 4.0 scale from your course grades and credit hours. Credit-weighted, with a worked example.",
+    keywords: ["gpa calculator", "calculate gpa", "grade point average", "gpa calculator 4.0", "college gpa calculator"],
+    category: "Calculators",
+    icon: GraduationCap,
+    limits:
+      "Uses the standard US 4.0 grade-point table (A+ and A both count as 4.0). Schools use different tables — check yours if the exact value matters.",
+  },
+  {
+    id: "cgpa-calculator",
+    slug: "cgpa-calculator",
+    title: "CGPA Calculator",
+    shortTitle: "CGPA",
+    description:
+      "Work out your CGPA from your semester GPAs, weighted by each semester's credits. Works on the 4.0 and 10.0 scales.",
+    keywords: ["cgpa calculator", "calculate cgpa", "cumulative gpa", "cgpa calculator 10 point", "semester gpa to cgpa"],
+    category: "Calculators",
+    icon: Sigma,
+    limits:
+      "Weights each semester by its credits, so a heavier semester counts more. Enter the GPA your university awarded for each semester.",
+  },
+  {
+    id: "percentage-calculator",
+    slug: "percentage-calculator",
+    title: "Percentage Calculator",
+    shortTitle: "Percentage",
+    description:
+      "Turn marks into a percentage, find X% of a number, or find what percentage one number is of another.",
+    keywords: ["percentage calculator", "marks percentage calculator", "calculate percentage", "percent calculator", "marks to percentage"],
+    category: "Calculators",
+    icon: Percent,
+    limits:
+      "For marks, the obtained marks cannot be more than the total marks. Results are rounded to two decimal places.",
+  },
+  {
+    id: "grade-calculator",
+    slug: "grade-calculator",
+    title: "Grade Calculator",
+    shortTitle: "Grade",
+    description:
+      "Enter a percentage and see the letter grade and grade points on the standard US +/− scale, with the full grade table.",
+    keywords: ["grade calculator", "percentage to grade", "letter grade calculator", "grade calculator percentage", "what grade is 85 percent"],
+    category: "Calculators",
+    icon: Award,
+    limits:
+      "Uses the standard US +/− scale (A+ 97–100 down to F below 60). Grading scales differ by school — check yours if the boundary matters.",
+  },
+  {
+    id: "cgpa-to-percentage",
+    slug: "cgpa-to-percentage",
+    title: "CGPA to Percentage",
+    shortTitle: "CGPA → %",
+    description:
+      "Convert a CGPA on the 10-point scale into a percentage, with the widely used ×9.5 formula or the direct ×10 conversion.",
+    keywords: ["cgpa to percentage", "convert cgpa to percentage", "cgpa to percentage calculator", "cgpa percentage converter"],
+    category: "Calculators",
+    icon: ArrowLeftRight,
+    limits:
+      "The ×9.5 formula is the widely used Indian-university convention; ×10 is the direct scale conversion. Universities differ — use the formula your university publishes when it matters.",
+  },
+  {
+    id: "percentage-to-gpa",
+    slug: "percentage-to-gpa",
+    title: "Percentage to GPA",
+    shortTitle: "% → GPA",
+    description:
+      "Convert a percentage into a GPA on the 4.0 or 10.0 scale. A quick, honest approximation — schools convert differently.",
+    keywords: ["percentage to gpa", "convert percentage to gpa", "percentage to gpa calculator", "marks percentage to gpa"],
+    category: "Calculators",
+    icon: Scale,
+    limits:
+      "An approximation: percentage ÷ 100 × 4 on the 4.0 scale, percentage ÷ 10 on the 10-point scale. Schools convert percentages to GPA in different ways.",
+  },
+  {
+    id: "final-grade-calculator",
+    slug: "final-grade-calculator",
+    title: "Final Grade Calculator",
+    shortTitle: "Final Grade",
+    description:
+      "Find out what score you need on your final exam to finish with the grade you want, given your current grade and the exam's weight.",
+    keywords: ["final grade calculator", "final exam calculator", "what do i need on my final", "final exam grade calculator", "calculate final grade"],
+    category: "Calculators",
+    icon: Target,
+    limits:
+      "If the answer is over 100%, the target grade is not reachable with this exam alone. The exam weight must be between 1% and 99%.",
+  },
+  {
+    id: "sgpa-calculator",
+    slug: "sgpa-calculator",
+    title: "SGPA Calculator",
+    shortTitle: "SGPA",
+    description:
+      "Work out your SGPA for one semester on the 10-point scale (O, A+, A, B+, B, C, P, F), credit-weighted by subject.",
+    keywords: ["sgpa calculator", "calculate sgpa", "semester gpa calculator", "sgpa calculator 10 point", "sgpa to cgpa"],
+    category: "Calculators",
+    icon: BookOpen,
+    limits:
+      "Uses the 10-point scale used in India and Pakistan (O = 10, A+ = 9, A = 8, B+ = 7, B = 6, C = 5, P = 4, F = 0).",
+  },
+  {
+    id: "weighted-grade-calculator",
+    slug: "weighted-grade-calculator",
+    title: "Weighted Grade Calculator",
+    shortTitle: "Weighted",
+    description:
+      "Combine homework, quizzes and exams into one weighted grade. Enter each part's score and weight — the weights must total 100%.",
+    keywords: ["weighted grade calculator", "weighted average calculator", "grade weight calculator", "weighted score calculator", "calculate weighted grade"],
+    category: "Calculators",
+    icon: Scale,
+    limits:
+      "Weights must add up to exactly 100% — the tool tells you the current total if they do not. Scores must be between 0 and 100.",
+  },
+  {
+    id: "gpa-to-percentage",
+    slug: "gpa-to-percentage",
+    title: "GPA to Percentage",
+    shortTitle: "GPA → %",
+    description:
+      "Convert a GPA into a percentage on the 4.0 or 10.0 scale. A quick, honest approximation — schools convert differently.",
+    keywords: ["gpa to percentage", "convert gpa to percentage", "gpa to percentage calculator", "4.0 gpa to percentage"],
+    category: "Calculators",
+    icon: TrendingUp,
+    limits:
+      "An approximation: GPA ÷ 4 × 100 on the 4.0 scale, GPA × 10 on the 10-point scale. Schools convert GPA to percentage in different ways.",
+  },
 ];
 
 export const TOOL_MAP: Record<string, ToolDef> = Object.fromEntries(
@@ -469,4 +619,4 @@ export function searchTools(query: string): ToolDef[] {
   return scored.map((s) => s.tool);
 }
 
-export const CATEGORIES: ToolCategory[] = ["Organise", "Convert", "Edit", "Secure", "AI"];
+export const CATEGORIES: ToolCategory[] = ["Organize", "Convert", "Edit", "Secure", "AI", "Calculators"];
