@@ -195,7 +195,7 @@ export const TOOLS: ToolDef[] = [
     category: "Convert",
     icon: FileText,
     limits:
-      "Approximation: this extracts the PDF's text and rebuilds it as a Word document. Layout reflows, and images, tables and fonts are not preserved.",
+      "Preserves text, font sizes, colours and headings; tables are rebuilt where columns can be detected and images are kept where possible. Bold/italic from PDFs are not preserved, and exact page layout may shift. Password-protected PDFs need their password entered on the tool page.",
   },
   {
     id: "pdf-to-pptx",
@@ -208,7 +208,7 @@ export const TOOLS: ToolDef[] = [
     category: "Convert",
     icon: Presentation,
     limits:
-      "Approximation: this extracts the PDF's text and rebuilds it as slides. Layout reflows, and images, charts and designs are not preserved.",
+      "Preserves text, font sizes and colours, with each line on its own text box; tables and images are kept where possible. Bold/italic from PDFs are not preserved, and exact page layout may shift. Password-protected PDFs need their password entered on the tool page.",
   },
   {
     id: "pdf-to-excel",
@@ -221,7 +221,7 @@ export const TOOLS: ToolDef[] = [
     category: "Convert",
     icon: FileSpreadsheet,
     limits:
-      "Approximation: tables are guessed from text spacing, so columns may need checking. Layout and images are not preserved.",
+      "Columns are detected from text positions, not guessed from spaces — check them before relying on them. Rows the PDF stores as a single text run stay in one cell. Password-protected PDFs need their password entered on the tool page.",
   },
   {
     id: "word-to-pdf",
@@ -234,7 +234,7 @@ export const TOOLS: ToolDef[] = [
     category: "Convert",
     icon: FileDown,
     limits:
-      "Approximation: text is extracted and re-rendered, so the original Word layout, images and tables are not preserved.",
+      "Preserves text, fonts, sizes, colours, bold/italic, headings, lists, tables, links and images where possible; exact Word pagination may shift. Urdu, Arabic, Chinese and other non-Latin text uses a downloaded Unicode font in the basic PDF — if that download fails, use “Print / Save as PDF”, which uses your browser's fonts.",
   },
   {
     id: "pptx-to-pdf",
@@ -247,7 +247,7 @@ export const TOOLS: ToolDef[] = [
     category: "Convert",
     icon: FileDown,
     limits:
-      "Approximation: slide text is extracted and re-rendered. Slide designs, images, charts and animations are not preserved.",
+      "Slides stay in presentation order and text keeps its size, colour and bold/italic; slide designs, charts and animations are not preserved, and exact slide layout may shift. Urdu, Arabic, Chinese and other non-Latin text uses a downloaded Unicode font in the basic PDF — if that download fails, use “Print / Save as PDF”.",
   },
   {
     id: "excel-to-pdf",
@@ -260,7 +260,7 @@ export const TOOLS: ToolDef[] = [
     category: "Convert",
     icon: FileDown,
     limits:
-      "Approximation: sheet data is rendered as simple tables. Long cell text is truncated, and charts and formulas appear as their values.",
+      "Sheet data is rendered as tables with content-aware column widths; long cells wrap instead of being cut off, and dates are shown as YYYY-MM-DD. Formulas appear as their values, charts are not preserved, and cell fonts/colours from the spreadsheet are not preserved.",
   },
   {
     id: "ocr-pdf",
@@ -299,7 +299,7 @@ export const TOOLS: ToolDef[] = [
     category: "Convert",
     icon: FileCode2,
     limits:
-      "Text extraction plus reflow, not a perfect conversion: headings are guessed, and images, tables and layout are not preserved.",
+      "Headings are detected from font size, not guessed from the words; tables are rebuilt where columns can be detected. Exact layout and images are not preserved. Password-protected PDFs need their password entered on the tool page.",
   },
   {
     id: "compare-pdf",
@@ -390,7 +390,7 @@ export const TOOLS: ToolDef[] = [
     category: "Convert",
     icon: Code2,
     limits:
-      "Basic styling only: external images, fonts and scripts are not loaded. The styled PDF comes from your browser's print dialog (“Save as PDF”).",
+      "The downloaded PDF preserves headings, bold/italic, colours, sizes, lists and tables from your HTML; exact browser layout may shift. The styled PDF comes from your browser's print dialog (“Save as PDF”). External images, fonts and scripts are not loaded.",
   },
   {
     id: "sign-pdf",

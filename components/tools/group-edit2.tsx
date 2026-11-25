@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { diffLines } from "diff";
 import {
   Dropzone,
   FileList,
@@ -20,14 +19,19 @@ import {
   loadPdf,
   openPdfjs,
   renderPageToJpeg,
-  parseRanges,
 } from "@/lib/pdf-utils";
+import { extractPagesText, splitLines, renderTextPagesToPdf } from "@/lib/text-tools";
 import {
-  extractPagesText,
-  extractPageItems,
-  splitLines,
-  renderTextPagesToPdf,
-} from "@/lib/text-tools";
+  annotatePdfBytes,
+  compareTexts,
+  redactPdfBytes,
+  cropPdfBytes,
+  detectFormFields,
+  fillFormPdf,
+  repairPdfBytes,
+  buildDescriptiveXmp,
+} from "@/lib/edit-ai-helpers";
+import type { FormFieldState } from "@/lib/edit-ai-helpers";
 
 interface Result {
   bytes: Uint8Array | Blob;
@@ -169,28 +173,7 @@ export function EditPdfTool() {
     if (page < 1 || page > pageCount) return r.setError(`Page must be between 1 and ${pageCount}.`);
     r.setBusy(true);
     try {
-      const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
-      const doc = await loadPdf(await fileBytes(files[0]));
-      const pg = doc.getPage(page - 1);
-      const { width, height } = pg.getSize();
-      const x = (xPct / 100) * width;
-      const y = (yPct / 100) * height;
-      if (kind === "text") {
-        const font = await doc.embedFont(StandardFonts.HelveticaBold);
-        pg.drawText(text || "(empty note)", { x, y, size, font, color: rgb(0.75, 0.1, 0.1), maxWidth: width - x - 20 });
-      } else {
-        pg.drawRectangle({
-          x: 36,
-          y: y - size,
-          width: width - 72,
-          height: size * 1.6,
-          color: rgb(1, 0.95, 0.4),
-          opacity: 0.55,
-        });
-        const font = await doc.embedFont(StandardFonts.Helvetica);
-        pg.drawText(text || "Highlighted", { x: 40, y: y - size + 4, size, font, color: rgb(0.1, 0.1, 0.1), maxWidth: width - 80 });
-      }
-      const bytes = await doc.save();
+      const bytes = await annotatePdfBytes(await fileBytes(files[0]), { page, kind, text, xPct, yPct, size });
       r.setResult({
         bytes,
         filename: `${baseName(files[0])}-annotated.pdf`,
@@ -225,7 +208,7 @@ export function EditPdfTool() {
             <input className={inputCls} value={text} onChange={(e) => setText(e.target.value)} />
           </div>
           <div>
-            <OptionLabel>Horizontal position ({xPct}% from left)</OptionLabel>
+            <OptionLabel>Horizontal position ({xPct}% from left){kind === "highlight" ? " — highlight band starts here" : ""}</OptionLabel>
             <input type="range" min={0} max={90} value={xPct} onChange={(e) => setXPct(Number(e.target.value))} className="w-full" />
           </div>
           <div>
@@ -263,48 +246,16 @@ export function CompareTool() {
     try {
       const a = await extractPagesText(await fileBytes(fileA));
       const b = await extractPagesText(await fileBytes(fileB));
-      const maxPages = Math.max(a.length, b.length);
-      let changedPages = 0;
-      let added = 0;
-      let removed = 0;
-      const report: string[] = [`# PDF comparison`, ``, `A: ${fileA.name} (${a.length} pages)`, `B: ${fileB.name} (${b.length} pages)`, ``];
-      const previewLines: string[] = [];
-      for (let i = 0; i < maxPages; i++) {
-        const ta = a[i] ?? "";
-        const tb = b[i] ?? "";
-        if (ta === tb) continue;
-        changedPages++;
-        report.push(`## Page ${i + 1}`);
-        const parts = diffLines(ta, tb);
-        for (const part of parts) {
-          const mark = part.added ? "+" : part.removed ? "-" : " ";
-          for (const line of part.value.split("\n").filter((l) => l.trim())) {
-            if (part.added) {
-              added++;
-              report.push(`+ ${line}`);
-              if (previewLines.length < 60) previewLines.push(`+ ${line}`);
-            } else if (part.removed) {
-              removed++;
-              report.push(`- ${line}`);
-              if (previewLines.length < 60) previewLines.push(`- ${line}`);
-            }
-          }
-        }
-        report.push("");
-      }
-      if (changedPages === 0) {
-        setSummary(`The two PDFs have identical extractable text (${a.length} page(s) each). Visual differences in images or layout are not detected by this text comparison.`);
-      } else {
-        setSummary(`${changedPages} of ${maxPages} page(s) differ: ${added} line(s) added, ${removed} line(s) removed.`);
-      }
-      setDiffPreview(previewLines.length ? previewLines.join("\n") : null);
-      const blob = new Blob([report.join("\n")], { type: "text/markdown" });
+      const diff = compareTexts(a, b, fileA.name, fileB.name);
+      setSummary(diff.summary);
+      setDiffPreview(diff.preview || null);
+      const blob = new Blob([diff.report], { type: "text/markdown" });
       r.setResult({
         bytes: blob,
         isBlob: true,
         mime: "text/markdown",
         filename: "pdf-comparison.md",
-        detail: `Comparison complete. ${changedPages === 0 ? "No text differences found." : `${changedPages} page(s) differ — download the full line-by-line report.`} This compares extracted text only; images and layout are not compared.`,
+        detail: `Comparison complete. ${diff.changedPages === 0 ? "No text differences found." : `${diff.changedPages} page(s) differ — download the full word-by-word report.`} This compares extracted text only; images and layout are not compared.`,
       });
     } catch (e) {
       r.setError(e instanceof Error ? e.message : "Comparison failed. One of the files may be damaged or password-protected.");
@@ -330,7 +281,7 @@ export function CompareTool() {
       {summary && <p className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800">{summary}</p>}
       {diffPreview && (
         <div className="mt-4">
-          <OptionLabel>Differing lines (preview)</OptionLabel>
+          <OptionLabel>Differing words (preview — [-removed-] [+added+])</OptionLabel>
           <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-800">{diffPreview}</pre>
         </div>
       )}
@@ -343,7 +294,6 @@ export function CompareTool() {
 export function RedactTool() {
   const { files, add, remove } = useFiles(false);
   const r = useResult();
-  const [pageCount, setPageCount] = useState(0);
   const [search, setSearch] = useState("");
   const [pages, setPages] = useState("");
   const [verified, setVerified] = useState<string | null>(null);
@@ -354,8 +304,7 @@ export function RedactTool() {
     r.setResult(null);
     setVerified(null);
     try {
-      const doc = await loadPdf(await fileBytes(incoming[0]));
-      setPageCount(doc.getPageCount());
+      await loadPdf(await fileBytes(incoming[0]));
     } catch {
       r.setError("Could not read this PDF. It may be damaged or password-protected.");
     }
@@ -370,59 +319,24 @@ export function RedactTool() {
     r.setBusy(true);
     try {
       const original = await fileBytes(files[0]);
-      const pageData = await extractPageItems(original);
-      const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
-      const src = await PDFDocument.load(original);
-      const out = await PDFDocument.create();
-      const font = await out.embedFont(StandardFonts.Helvetica);
-      const query = search.trim().toLowerCase();
-      const blackout = pages.trim() ? new Set(parseRanges(pages, pageCount)) : new Set<number>();
-      let redactedItems = 0;
-      let rebuiltPages = 0;
-
-      for (let i = 0; i < pageData.length; i++) {
-        const { items, width, height } = pageData[i];
-        const pageNum = i + 1;
-        const matches = query
-          ? items.filter((it) => it.str.toLowerCase().includes(query))
-          : [];
-        if (blackout.has(pageNum)) {
-          const pg = out.addPage([width, height]);
-          pg.drawRectangle({ x: 0, y: 0, width, height, color: rgb(0, 0, 0) });
-          redactedItems += items.length;
-          rebuiltPages++;
-          continue;
-        }
-        if (matches.length === 0) {
-          const [copied] = await out.copyPages(src, [i]);
-          out.addPage(copied);
-          continue;
-        }
-        rebuiltPages++;
-        redactedItems += matches.length;
-        const pg = out.addPage([width, height]);
-        for (const it of items) {
-          if (matches.includes(it)) continue;
-          pg.drawText(it.str, { x: it.x, y: it.y, size: Math.min(Math.max(it.fontSize, 6), 48), font, color: rgb(0.1, 0.1, 0.1), maxWidth: width - it.x });
-        }
-        for (const it of matches) {
-          pg.drawRectangle({ x: Math.max(0, it.x - 1), y: Math.max(0, it.y - 1), width: it.width + 2, height: it.height + 2, color: rgb(0, 0, 0) });
-        }
+      const result = await redactPdfBytes(original, { search, pages });
+      if (result.leaked) {
+        setVerified(
+          "Warning: verification found the redacted text is still extractable — do not share this file. The text may be stored in a form this tool cannot remove (for example inside an embedded form or image).",
+        );
+      } else if (result.fallbackPages.length > 0) {
+        setVerified(
+          `Verified: after redaction, “${search.trim() || "the blacked-out pages"}” no longer appears in the extracted text. Page(s) ${result.fallbackPages.join(", ")} could not be redacted in place, so ${result.fallbackPages.length === 1 ? "it was" : "they were"} rebuilt as text-only — images and vector graphics on ${result.fallbackPages.length === 1 ? "that page were" : "those pages were"} not preserved.`,
+        );
+      } else {
+        setVerified(
+          `Verified: after redaction, “${search.trim() || "the blacked-out pages"}” no longer appears in the extracted text. Redacted pages kept their images and graphics — only the matched text was removed and covered.`,
+        );
       }
-      if (redactedItems === 0) throw new Error(query ? `The text “${search.trim()}” was not found in this PDF.` : "Nothing to redact.");
-      const bytes = await out.save();
-      // Verify: the redacted text must no longer be extractable.
-      const afterText = await extractPagesText(bytes);
-      const leaked = query ? afterText.some((t) => t.toLowerCase().includes(query)) : false;
-      setVerified(
-        leaked
-          ? "Warning: verification found the redacted text is still extractable — do not share this file."
-          : `Verified: after redaction, “${search.trim() || "the blacked-out pages"}” no longer appears in the extracted text. Redacted pages were rebuilt as text-only, so images and vector graphics on those pages are not preserved.`,
-      );
       r.setResult({
-        bytes,
+        bytes: result.bytes,
         filename: `${baseName(files[0])}-redacted.pdf`,
-        detail: `Redacted ${redactedItems} text item(s) across ${rebuiltPages} page(s) (${formatBytes(bytes.length)}). The underlying text was removed, not just covered.`,
+        detail: `Redacted ${result.redactedItems} text item(s) across ${result.rebuiltPages} page(s) (${formatBytes(result.bytes.length)}). The underlying text was removed, not just covered.${result.fallbackPages.length > 0 ? ` Page(s) ${result.fallbackPages.join(", ")} were rebuilt as text-only (images not preserved).` : ""}${result.leaked ? " Verification FAILED — see the warning above." : ""}`,
       });
     } catch (e) {
       r.setError(e instanceof Error ? e.message : "Redaction failed.");
@@ -445,6 +359,12 @@ export function RedactTool() {
           <input className={inputCls} value={pages} onChange={(e) => setPages(e.target.value)} placeholder="Leave blank for none" />
         </div>
       </div>
+      <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm leading-relaxed text-slate-700">
+        Redaction removes the matched text from the file itself — including text split across lines — and covers
+        the spot with a black box. Redacted pages keep their images and graphics. Only the words you searched
+        for are removed; the rest of the sentence stays. If a page&apos;s text cannot be removed in place
+        (unusual fonts), that page is rebuilt as text-only and you will be told which page lost its images.
+      </p>
       <ProcessButton busy={r.busy} disabled={!files.length} label="Redact PDF" busyLabel="Redacting…" onClick={run} />
       <ErrorNote message={r.error} />
       {verified && <p className="mt-4 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-900">{verified}</p>}
@@ -457,7 +377,6 @@ export function RedactTool() {
 export function CropTool() {
   const { files, add, remove } = useFiles(false);
   const r = useResult();
-  const [pageCount, setPageCount] = useState(0);
   const [left, setLeft] = useState(5);
   const [right, setRight] = useState(5);
   const [top, setTop] = useState(5);
@@ -470,8 +389,7 @@ export function CropTool() {
     r.setError(null);
     r.setResult(null);
     try {
-      const doc = await loadPdf(await fileBytes(incoming[0]));
-      setPageCount(doc.getPageCount());
+      await loadPdf(await fileBytes(incoming[0]));
     } catch {
       r.setError("Could not read this PDF. It may be damaged or password-protected.");
     }
@@ -484,25 +402,15 @@ export function CropTool() {
     if (left + right >= 100 || top + bottom >= 100) return r.setError("The margins add up to 100% or more — nothing would be left of the page.");
     r.setBusy(true);
     try {
-      const doc = await loadPdf(await fileBytes(files[0]));
-      const total = doc.getPageCount();
-      const targets = scope === "all" ? Array.from({ length: total }, (_, i) => i) : parseRanges(pages, total).map((p) => p - 1);
-      if (!targets.length) throw new Error(`No valid pages in "${pages}" for a ${total}-page PDF.`);
-      for (const idx of targets) {
-        const pg = doc.getPage(idx);
-        const { width, height } = pg.getSize();
-        const x = (width * left) / 100;
-        const y = (height * bottom) / 100;
-        const w = width - (width * (left + right)) / 100;
-        const h = height - (height * (top + bottom)) / 100;
-        pg.setCropBox(x, y, w, h);
-        pg.setMediaBox(x, y, w, h);
-      }
-      const bytes = await doc.save();
+      const result = await cropPdfBytes(await fileBytes(files[0]), { left, right, top, bottom, scope, pages });
+      const fallbackNote =
+        result.fallbackPages.length > 0
+          ? ` Page(s) ${result.fallbackPages.join(", ")} could not be cropped in place, so ${result.fallbackPages.length === 1 ? "it was" : "they were"} rebuilt from the text inside the crop area only — images on ${result.fallbackPages.length === 1 ? "that page were" : "those pages were"} not preserved.`
+          : "";
       r.setResult({
-        bytes,
+        bytes: result.bytes,
         filename: `${baseName(files[0])}-cropped.pdf`,
-        detail: `Cropped ${targets.length} page(s) by ${left}% left, ${right}% right, ${top}% top, ${bottom}% bottom (${formatBytes(bytes.length)}). The page boxes were genuinely changed, so the cropped area is gone in every reader.`,
+        detail: `Cropped ${result.croppedPages.length} page(s) by ${left}% left, ${right}% right, ${top}% top, ${bottom}% bottom (${formatBytes(result.bytes.length)}). Text${result.removedImages > 0 ? ` and ${result.removedImages} image(s)` : ""} outside the crop area were removed from the file, not just hidden${result.verified ? " (verified: no text remains outside the crop area)" : " — verification could not confirm every page, so check the result before sharing"}. Vector drawings outside the crop area may remain embedded but are clipped from view.${fallbackNote}`,
       });
     } catch (e) {
       r.setError(e instanceof Error ? e.message : "Cropping failed.");
@@ -546,6 +454,10 @@ export function CropTool() {
           </div>
         )}
       </div>
+      <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm leading-relaxed text-slate-700">
+        Cropping removes the text and images outside the crop area from the file — it does not just hide
+        them. Vector drawings outside the area may remain embedded but are clipped from view.
+      </p>
       <ProcessButton busy={r.busy} disabled={!files.length} label="Crop PDF" busyLabel="Cropping…" onClick={run} />
       <ErrorNote message={r.error} />
       {r.result && <ResultCard title="Your cropped PDF is ready" detail={r.result.detail} filename={r.result.filename} onDownload={r.download} />}
@@ -554,13 +466,6 @@ export function CropTool() {
 }
 
 // ---------------------------------------------------------------- PDF Forms
-interface FormFieldState {
-  name: string;
-  type: string;
-  value: string;
-  options?: string[];
-}
-
 export function FormsTool() {
   const { files, add, remove } = useFiles(false);
   const r = useResult();
@@ -574,16 +479,7 @@ export function FormsTool() {
     setFields([]);
     setLoaded(false);
     try {
-      const { PDFDocument, PDFTextField, PDFCheckBox, PDFDropdown } = await import("pdf-lib");
-      const doc = await PDFDocument.load(await fileBytes(incoming[0]));
-      const form = doc.getForm();
-      const list: FormFieldState[] = form.getFields().map((f) => {
-        const name = f.getName();
-        if (f instanceof PDFTextField) return { name, type: "text", value: f.getText() ?? "" };
-        if (f instanceof PDFCheckBox) return { name, type: "checkbox", value: f.isChecked() ? "yes" : "no" };
-        if (f instanceof PDFDropdown) return { name, type: "dropdown", value: f.getSelected()[0] ?? "", options: f.getOptions() };
-        return { name, type: f.constructor.name.replace("PDF", ""), value: "" };
-      });
+      const list = await detectFormFields(await fileBytes(incoming[0]));
       setFields(list);
       setLoaded(true);
       if (!list.length) r.setError("This PDF has no fillable form fields. Only PDFs with AcroForm fields can be filled here.");
@@ -602,20 +498,7 @@ export function FormsTool() {
     if (!fields.length) return r.setError("This PDF has no fillable form fields.");
     r.setBusy(true);
     try {
-      const { PDFDocument, PDFTextField, PDFCheckBox, PDFDropdown, StandardFonts } = await import("pdf-lib");
-      const doc = await PDFDocument.load(await fileBytes(files[0]));
-      const form = doc.getForm();
-      const font = await doc.embedFont(StandardFonts.Helvetica);
-      for (const state of fields) {
-        const field = form.getField(state.name);
-        if (field instanceof PDFTextField) field.setText(state.value);
-        else if (field instanceof PDFCheckBox) {
-          if (state.value === "yes") field.check();
-          else field.uncheck();
-        } else if (field instanceof PDFDropdown && state.value) field.select(state.value);
-      }
-      form.updateFieldAppearances(font);
-      const bytes = await doc.save();
+      const bytes = await fillFormPdf(await fileBytes(files[0]), fields);
       const filled = fields.filter((f) => f.value.trim()).length;
       r.setResult({
         bytes,
@@ -655,8 +538,29 @@ export function FormsTool() {
                     </option>
                   ))}
                 </select>
-              ) : (
+              ) : f.type === "radio" ? (
+                <div className="flex flex-wrap gap-4">
+                  {(f.options ?? []).map((o) => (
+                    <label key={o} className="flex items-center gap-2 text-sm text-slate-800">
+                      <input
+                        type="radio"
+                        name={`form-field-${f.name}`}
+                        value={o}
+                        checked={f.value === o}
+                        onChange={() => setValue(i, o)}
+                        className="accent-teal-700"
+                      />
+                      {o}
+                    </label>
+                  ))}
+                  {(f.options ?? []).length === 0 && <span className="text-sm text-slate-500">This radio group has no options.</span>}
+                </div>
+              ) : f.type === "text" ? (
                 <input className={inputCls} value={f.value} onChange={(e) => setValue(i, e.target.value)} placeholder={`Enter ${f.name}`} />
+              ) : (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  This field ({f.type}) cannot be filled here — it is left unchanged in the saved file.
+                </p>
               )}
             </div>
           ))}
@@ -685,16 +589,13 @@ export function RepairTool() {
     if (!files.length) return r.setError("Choose a PDF file.");
     r.setBusy(true);
     try {
-      const { PDFDocument } = await import("pdf-lib");
       const original = await fileBytes(files[0]);
-      const doc = await PDFDocument.load(original, { ignoreEncryption: true, updateMetadata: false });
-      const pages = doc.getPageCount();
-      doc.setTitle(doc.getTitle() || baseName(files[0]));
-      const bytes = await doc.save();
+      const result = await repairPdfBytes(original, baseName(files[0]));
+      const warnNote = result.warnings.length ? ` ${result.warnings.join(" ")}` : "";
       r.setResult({
-        bytes,
+        bytes: result.bytes,
         filename: `${baseName(files[0])}-repaired.pdf`,
-        detail: `Re-saved the file (${pages} page(s), ${formatBytes(original.length)} → ${formatBytes(bytes.length)}). This rebuild fixes some structural corruption, but it is not a guaranteed repair — badly damaged files may still fail to open.`,
+        detail: `Re-saved the file (${result.pages} page(s), ${formatBytes(original.length)} → ${formatBytes(result.bytes.length)}). This rebuild fixes some structural corruption, but it is not a guaranteed repair — it only helps files this tool can already read, and badly damaged files may still fail to open.${warnNote}`,
       });
     } catch (e) {
       r.setError(
@@ -711,6 +612,11 @@ export function RepairTool() {
     <div>
       <Dropzone accept="application/pdf,.pdf" onFiles={add} hint="One damaged or misbehaving PDF" />
       <FileList files={files} onRemove={remove} />
+      <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm leading-relaxed text-slate-700">
+        Repair re-saves files this tool can already read. It cannot fix files that will not open at all, and
+        password-protected files must be unlocked first. After repairing, every page is checked — if a page
+        lost its text, you will be told which one.
+      </p>
       <ProcessButton busy={r.busy} disabled={!files.length} label="Attempt repair" busyLabel="Repairing…" onClick={run} />
       <ErrorNote message={r.error} />
       {r.result && <ResultCard title="Repaired copy ready" detail={r.result.detail} filename={r.result.filename} onDownload={r.download} />}
@@ -739,24 +645,17 @@ export function PdfATool() {
       doc.setProducer("PDF World PDF/A-style export");
       doc.setCreationDate(new Date());
       doc.setModificationDate(new Date());
-      const xmp = [
-        '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>',
-        '<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="PDF World">',
-        '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">',
-        '<rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">',
-        "<pdfaid:part>1</pdfaid:part><pdfaid:conformance>B</pdfaid:conformance>",
-        "</rdf:Description>",
-        `<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title><rdf:Alt><rdf:li xml:lang="x-default">${(title || doc.getTitle() || "").replace(/[<>&]/g, "")}</rdf:li></rdf:Alt></dc:title></rdf:Description>`,
-        "</rdf:RDF></x:xmpmeta>",
-        '<?xpacket end="w"?>',
-      ].join("\n");
+      // Descriptive XMP only (title/author). This deliberately does NOT claim
+      // PDF/A conformance: a real PDF/A-1b file needs embedded fonts and an
+      // OutputIntent, which this browser tool does not produce (B-13).
+      const xmp = buildDescriptiveXmp(title || doc.getTitle() || "", author);
       const stream = doc.context.flateStream(new TextEncoder().encode(xmp));
       doc.catalog.set(PDFName.of("Metadata"), doc.context.register(stream));
       const bytes = await doc.save();
       r.setResult({
         bytes,
         filename: `${baseName(files[0])}-pdfa.pdf`,
-        detail: `Added PDF/A-style XMP metadata and document info (${doc.getPageCount()} page(s), ${formatBytes(bytes.length)}). This is metadata only — it is NOT a certified PDF/A file, and fonts are not embedded or validated.`,
+        detail: `Added PDF/A-style descriptive metadata and document info (${doc.getPageCount()} page(s), ${formatBytes(bytes.length)}). This is metadata only — it is NOT a certified PDF/A file: fonts are not embedded, there is no OutputIntent, and no conformance is claimed. Do not submit it where a validated PDF/A is required.`,
       });
     } catch (e) {
       r.setError(e instanceof Error ? e.message : "Conversion failed. The file may be damaged or password-protected.");
@@ -779,6 +678,11 @@ export function PdfATool() {
           <input className={inputCls} value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="Author name" />
         </div>
       </div>
+      <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm leading-relaxed text-slate-700">
+        This adds PDF/A-style descriptive metadata (title, author) to the file. It does <strong>not</strong>{" "}
+        produce a certified PDF/A file — fonts are not embedded and no conformance is claimed — so do not
+        submit the result where a validated PDF/A is required.
+      </p>
       <ProcessButton busy={r.busy} disabled={!files.length} label="Create PDF/A-style file" busyLabel="Working…" onClick={run} />
       <ErrorNote message={r.error} />
       {r.result && <ResultCard title="Your PDF/A-style file is ready" detail={r.result.detail} filename={r.result.filename} onDownload={r.download} />}

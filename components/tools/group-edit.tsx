@@ -13,6 +13,13 @@ import {
   inputCls,
 } from "@/components/tool-ui";
 import { downloadBytes, fileBytes, formatBytes, loadPdf } from "@/lib/pdf-utils";
+import { countFormFields } from "@/lib/pdf-utils";
+import { extractPageItems } from "@/lib/text-tools";
+import {
+  assertWatermarkEncodable,
+  fitWatermarkSize,
+  findStampCollisions,
+} from "@/lib/edit-ai-helpers";
 
 interface Result {
   bytes: Uint8Array;
@@ -40,6 +47,7 @@ export function OrganizeTool() {
   const [file, setFile] = useState<File | null>(null);
   const [thumbs, setThumbs] = useState<PageThumb[]>([]);
   const [loading, setLoading] = useState(false);
+  const [formFields, setFormFields] = useState(0);
   const r = useResult();
 
   const load = async (incoming: File[]) => {
@@ -47,6 +55,7 @@ export function OrganizeTool() {
     if (!f) return;
     setFile(f);
     setThumbs([]);
+    setFormFields(0);
     r.setError(null);
     r.setResult(null);
     setLoading(true);
@@ -58,6 +67,12 @@ export function OrganizeTool() {
         list.push({ num: i, src: await renderPageThumb(doc, i) });
       }
       setThumbs(list);
+      // AcroForm fields do not survive copyPages (B-01): warn, don't drop silently.
+      try {
+        setFormFields(countFormFields(await loadPdf(await fileBytes(f))));
+      } catch {
+        setFormFields(0);
+      }
     } catch (e) {
       r.setError(e instanceof Error ? e.message : "Could not preview this PDF. It may be damaged or password-protected.");
     } finally {
@@ -93,7 +108,7 @@ export function OrganizeTool() {
       r.setResult({
         bytes,
         filename: "organized.pdf",
-        detail: `Saved ${thumbs.length} page(s) in your new order (${formatBytes(bytes.length)}).`,
+        detail: `Saved ${thumbs.length} page(s) in your new order (${formatBytes(bytes.length)}).${formFields > 0 ? ` Note: this PDF had ${formFields} fillable form field(s), which were lost when the pages were rebuilt — form fields do not survive reorganising.` : ""}`,
       });
     } catch (e) {
       r.setError(e instanceof Error ? e.message : "Could not save the reorganized PDF.");
@@ -106,6 +121,12 @@ export function OrganizeTool() {
     <div>
       <Dropzone accept="application/pdf,.pdf" onFiles={load} hint="One PDF file" />
       {file && <FileList files={[file]} onRemove={() => { setFile(null); setThumbs([]); }} />}
+      {formFields > 0 && (
+        <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          This PDF has {formFields} fillable form field(s). Reorganising rebuilds the file from its pages, so
+          those fields will be lost in the saved copy.
+        </p>
+      )}
       {loading && <p className="mt-4 text-sm text-slate-600">Rendering page previews…</p>}
       {thumbs.length > 0 && (
         <>
@@ -159,13 +180,33 @@ export function WatermarkTool() {
     try {
       const doc = await loadPdf(await fileBytes(file));
       const font = await doc.embedFont(StandardFonts.HelveticaBold);
+      // Helvetica is a WinAnsi font: non-Latin text cannot be drawn at all.
+      // Say so plainly instead of the generic "file may be damaged" error (B-15).
+      assertWatermarkEncodable(font, text);
       const total = doc.getPageCount();
+      let shrunkNote = "";
       for (const page of doc.getPages()) {
         const { width, height } = page.getSize();
-        const textWidth = font.widthOfTextAtSize(text, size);
-        const opts = { size, font, color: rgb(0.55, 0.55, 0.55), opacity };
+        const rotated = position === "diagonal";
+        const fit = fitWatermarkSize(font, text, size, width, height, rotated);
+        if (fit.shrunk) shrunkNote = ` The font was shrunk from ${size} pt to ${fit.size} pt so the text fits on the page.`;
+        if (!fit.fits) {
+          throw new Error(
+            `The watermark text is too long to fit on the page even at the smallest size (8 pt) — shorten the text and try again.`,
+          );
+        }
+        const effSize = fit.size;
+        const textWidth = fit.textWidth;
+        const opts = { size: effSize, font, color: rgb(0.55, 0.55, 0.55), opacity };
         if (position === "diagonal") {
-          page.drawText(text, { ...opts, x: (width - textWidth) / 2, y: height / 2, rotate: degrees(-35) });
+          // Centre the -35° rotated bounding box on the page (B-06): the old
+          // code centred the unrotated text, so long text ran off-page.
+          const cos = Math.cos((35 * Math.PI) / 180);
+          const sin = Math.sin((35 * Math.PI) / 180);
+          const bboxW = textWidth * cos + effSize * sin;
+          const x = width / 2 - bboxW / 2;
+          const y = height / 2 + (textWidth * sin) / 2 - (effSize * cos) / 2;
+          page.drawText(text, { ...opts, x, y, rotate: degrees(-35) });
         } else if (position === "center") {
           page.drawText(text, { ...opts, x: (width - textWidth) / 2, y: height / 2 });
         } else if (position === "top") {
@@ -178,7 +219,7 @@ export function WatermarkTool() {
       r.setResult({
         bytes,
         filename: "watermarked.pdf",
-        detail: `Added the watermark “${text}” to ${total} page(s) (${formatBytes(bytes.length)}).`,
+        detail: `Added the watermark “${text}” to ${total} page(s) (${formatBytes(bytes.length)}).${shrunkNote}`,
       });
     } catch (e) {
       r.setError(e instanceof Error ? e.message : "Watermarking failed. The file may be damaged or password-protected.");
@@ -214,6 +255,10 @@ export function WatermarkTool() {
           <input type="range" min={18} max={96} value={size} onChange={(e) => setSize(Number(e.target.value))} className="w-full accent-teal-700" />
         </div>
       </div>
+      <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm leading-relaxed text-slate-700">
+        Long text is automatically shrunk so the watermark fits on the page. The watermark font supports
+        Latin letters, numbers and basic punctuation only.
+      </p>
       <ProcessButton busy={r.busy} disabled={!file} label="Add watermark" busyLabel="Adding…" onClick={run} />
       <ErrorNote message={r.error} />
       {r.result && <ResultCard title="Your watermarked PDF is ready" detail={r.result.detail} filename={r.result.filename} onDownload={r.download} />}
@@ -237,15 +282,26 @@ export function PageNumbersTool() {
     }
     r.setBusy(true);
     try {
-      const doc = await loadPdf(await fileBytes(file));
+      const bytes = await fileBytes(file);
+      const doc = await loadPdf(bytes);
       const font = await doc.embedFont(StandardFonts.Helvetica);
       const total = doc.getPageCount();
+      const size = 11;
+      // Collision check: would a number land on top of existing text? (B-07)
+      const labelFor = (n: number) => (format === "n" ? `${n}` : format === "page-n" ? `Page ${n}` : `${n} of ${total}`);
+      const labelWidths = Array.from({ length: total }, (_, i) => font.widthOfTextAtSize(labelFor(i + 1), size));
+      let collisions: { page: number; existingText: string }[] = [];
+      try {
+        collisions = findStampCollisions(await extractPageItems(bytes), position, labelWidths, size);
+      } catch {
+        collisions = [];
+      }
+      const rotatedPages = doc.getPages().map((p, i) => (p.getRotation().angle % 360 !== 0 ? i + 1 : null)).filter((n): n is number => n !== null);
       doc.getPages().forEach((page, i) => {
         const n = i + 1;
-        const label = format === "n" ? `${n}` : format === "page-n" ? `Page ${n}` : `${n} of ${total}`;
+        const label = labelFor(n);
         const { width, height } = page.getSize();
-        const size = 11;
-        const textWidth = font.widthOfTextAtSize(label, size);
+        const textWidth = labelWidths[i];
         let x = (width - textWidth) / 2;
         let y = 24;
         if (position === "bottom-right") x = width - textWidth - 30;
@@ -257,11 +313,19 @@ export function PageNumbersTool() {
         }
         page.drawText(label, { x, y, size, font, color: rgb(0.25, 0.25, 0.25) });
       });
-      const bytes = await doc.save();
+      const outBytes = await doc.save();
+      const collisionNote =
+        collisions.length > 0
+          ? ` Note: the number overlaps existing text on page(s) ${collisions.map((c) => `${c.page} (“${c.existingText}”)`).join(", ")} — it is stamped on top of it.`
+          : "";
+      const rotatedNote =
+        rotatedPages.length > 0
+          ? ` Page(s) ${rotatedPages.join(", ")} are rotated, so the number appears on the visual side of the page rather than the bottom/top.`
+          : "";
       r.setResult({
-        bytes,
+        bytes: outBytes,
         filename: "numbered.pdf",
-        detail: `Added page numbers to all ${total} page(s) (${formatBytes(bytes.length)}).`,
+        detail: `Added page numbers to all ${total} page(s) (${formatBytes(outBytes.length)}).${collisionNote}${rotatedNote}`,
       });
     } catch (e) {
       r.setError(e instanceof Error ? e.message : "Adding page numbers failed. The file may be damaged or password-protected.");
@@ -294,6 +358,10 @@ export function PageNumbersTool() {
           </select>
         </div>
       </div>
+      <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm leading-relaxed text-slate-700">
+        Numbers are stamped at fixed positions. If a page already has a footer there, the number is drawn on
+        top of it — the result will tell you which pages overlap.
+      </p>
       <ProcessButton busy={r.busy} disabled={!file} label="Add page numbers" busyLabel="Adding…" onClick={run} />
       <ErrorNote message={r.error} />
       {r.result && <ResultCard title="Your numbered PDF is ready" detail={r.result.detail} filename={r.result.filename} onDownload={r.download} />}

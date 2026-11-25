@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Dropzone, FileList, ProcessButton, ResultCard, ErrorNote, OptionLabel, selectCls } from "@/components/tool-ui";
 import { downloadBytes, downloadBlob, fileBytes, formatBytes } from "@/lib/pdf-utils";
 import { extractPagesText, renderTextPagesToPdf } from "@/lib/text-tools";
+import { summarizeText, translateText, langName } from "@/lib/edit-ai-helpers";
 
 // ---------------------------------------------------------------------------
 // Shared helpers (same shape as the other tool groups)
@@ -42,39 +43,8 @@ function baseName(f: File) {
 
 // ---------------------------------------------------------------------------
 // AI Summarizer — extractive, frequency-scored. Template-based, no AI model.
+// Scoring lives in lib/edit-ai-helpers (Unicode-aware; see there).
 // ---------------------------------------------------------------------------
-
-const STOPWORDS = new Set(
-  ("a,an,the,and,or,but,if,then,else,when,at,by,for,with,about,against,between,into,through,during,before,after,above,below,to,from,up,down,in,out,on,off,over,under,again,further,once,here,there,all,any,both,each,few,more,most,other,some,such,no,nor,not,only,own,same,so,than,too,very,can,will,just,should,now,is,are,was,were,be,been,being,have,has,had,having,do,does,did,doing,would,could,shall,may,might,must,of,as,it,its,this,that,these,those,i,you,he,she,we,they,them,his,her,their,our,your,my,me,him,us,who,whom,which,what,how,why,where,also,one,two,first,second,new,used,use,using,may,per,via,et,al,fig,page,pages").split(","),
-);
-
-function splitSentences(text: string): string[] {
-  const cleaned = text.replace(/\s+/g, " ").trim();
-  if (!cleaned) return [];
-  const parts = cleaned.match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g) ?? [];
-  return parts.map((s) => s.trim()).filter((s) => s.length > 25 && s.split(/\s+/).length >= 4);
-}
-
-function extractiveSummary(text: string, targetSentences: number): { summary: string[]; total: number } {
-  const sentences = splitSentences(text);
-  if (!sentences.length) return { summary: [], total: 0 };
-  const freq = new Map<string, number>();
-  for (const s of sentences) {
-    for (const w of s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/)) {
-      if (w.length > 2 && !STOPWORDS.has(w)) freq.set(w, (freq.get(w) ?? 0) + 1);
-    }
-  }
-  const scored = sentences.map((s, i) => {
-    const words = s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter((w) => w.length > 2 && !STOPWORDS.has(w));
-    const score = words.reduce((acc, w) => acc + (freq.get(w) ?? 0), 0) / Math.max(1, Math.sqrt(words.length));
-    return { s, i, score };
-  });
-  const picked = scored
-    .sort((a, b) => b.score - a.score)
-    .slice(0, Math.min(targetSentences, sentences.length))
-    .sort((a, b) => a.i - b.i);
-  return { summary: picked.map((p) => p.s), total: sentences.length };
-}
 
 export function AiSummarizerTool() {
   const { files, add, remove } = useFiles(false);
@@ -93,15 +63,7 @@ export function AiSummarizerTool() {
     try {
       const pages = await extractPagesText(await fileBytes(files[0]));
       const text = pages.join("\n");
-      const words = text.split(/\s+/).filter(Boolean).length;
-      if (words < 40) {
-        return r.setError(
-          "Not enough extractable text to summarise — this PDF has fewer than 40 words. Scanned PDFs need OCR first.",
-        );
-      }
-      const target = length === "short" ? 5 : length === "medium" ? 8 : 12;
-      const { summary, total } = extractiveSummary(text, target);
-      if (!summary.length) return r.setError("Could not find complete sentences to summarise in this PDF.");
+      const { summary, total, words } = summarizeText(text, length);
       const joined = summary.join(" ");
       setSummaryText(joined);
       setSummaryMeta(
@@ -186,7 +148,7 @@ const TARGET_LANGS: { code: string; name: string }[] = [
 ];
 
 const SOURCE_LANGS: { code: string; name: string }[] = [
-  { code: "auto", name: "Auto-detect" },
+  { code: "auto", name: "Auto-detect (in your browser)" },
   { code: "en", name: "English" },
   { code: "es", name: "Spanish" },
   { code: "fr", name: "French" },
@@ -198,50 +160,11 @@ const SOURCE_LANGS: { code: string; name: string }[] = [
   { code: "hi", name: "Hindi" },
 ];
 
-/** Split text into chunks of at most ~450 characters, cut at sentence ends. */
-function chunkText(text: string, max = 450): string[] {
-  const sentences = text.match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g) ?? [text];
-  const chunks: string[] = [];
-  let cur = "";
-  for (const s of sentences) {
-    const piece = s.trim();
-    if (!piece) continue;
-    if (cur && cur.length + piece.length + 1 > max) {
-      chunks.push(cur);
-      cur = piece;
-    } else {
-      cur = cur ? `${cur} ${piece}` : piece;
-    }
-    if (cur.length > max) {
-      // One very long sentence: hard-split it.
-      while (cur.length > max) {
-        chunks.push(cur.slice(0, max));
-        cur = cur.slice(max);
-      }
-    }
-  }
-  if (cur) chunks.push(cur);
-  return chunks;
-}
-
-async function translateChunk(text: string, source: string, target: string): Promise<string> {
-  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${encodeURIComponent(source)}|${encodeURIComponent(target)}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Translation service returned HTTP ${res.status}.`);
-  const data = (await res.json()) as {
-    responseStatus?: number;
-    responseData?: { translatedText?: string };
-    responseDetails?: string;
-  };
-  const out = data.responseData?.translatedText ?? "";
-  if (data.responseStatus === 429 || /MYMEMORY WARNING|USED ALL AVAILABLE FREE TRANSLATIONS/i.test(out)) {
-    throw new Error(
-      "QUOTA: the free translation service's daily quota for this network is used up. Try again later, or download the extracted text below and translate it elsewhere.",
-    );
-  }
-  if (!out.trim()) throw new Error("The translation service returned an empty result.");
-  return out;
-}
+// Translation itself lives in lib/edit-ai-helpers (translateText):
+// "Auto-detect" is resolved in the browser by language detection and is
+// NEVER sent to MyMemory (the service rejects langpair=auto|xx), and any
+// non-200 responseStatus — string or number — is treated as an error, never
+// as a translation (BUG-1, BUG-12).
 
 export function TranslatePdfTool() {
   const { files, add, remove } = useFiles(false);
@@ -268,21 +191,13 @@ export function TranslatePdfTool() {
         return r.setError("No extractable text found — scanned PDFs need OCR first.");
       }
       setExtracted(text);
-      const chunks = chunkText(text);
-      if (chunks.join("").length > 4800) {
-        return r.setError(
-          `This document has about ${chunks.join("").length.toLocaleString()} characters of text, above this tool's ~5,000-character limit for one run. Translate a shorter document, or split the PDF first.`,
-        );
-      }
-      const out: string[] = [];
-      for (let i = 0; i < chunks.length; i++) {
-        setProgress(`Translating part ${i + 1} of ${chunks.length}…`);
-        out.push(await translateChunk(chunks[i], source, target));
-      }
+      const { translated: joined, detectedSource, chunks } = await translateText(text, source, target, fetch, (done, total) =>
+        setProgress(`Translating part ${done} of ${total}…`),
+      );
       setProgress(null);
-      const joined = out.join(" ");
       setTranslated(joined);
       const targetName = TARGET_LANGS.find((l) => l.code === target)?.name ?? target;
+      const detectedNote = source === "auto" ? ` (auto-detected ${langName(detectedSource)})` : "";
       const bytes = await renderTextPagesToPdf(
         [{ heading: `Translation (${targetName}) — ${files[0].name}`, lines: joined.split(/(?<=[.!?])\s+/) }],
         { title: `Translation of ${files[0].name}` },
@@ -290,7 +205,7 @@ export function TranslatePdfTool() {
       r.setResult({
         bytes,
         filename: `${baseName(files[0])}-translated-${target}.pdf`,
-        detail: `Translated ${chunks.length} part${chunks.length === 1 ? "" : "s"} into ${targetName} (${formatBytes(bytes.length)}). Machine translation is approximate — check important wording before relying on it.`,
+        detail: `Translated ${chunks} part${chunks === 1 ? "" : "s"} from ${langName(detectedSource)}${detectedNote} into ${targetName} (${formatBytes(bytes.length)}). Machine translation is approximate — check important wording before relying on it.`,
       });
     } catch (e) {
       setProgress(null);

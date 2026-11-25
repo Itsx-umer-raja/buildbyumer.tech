@@ -15,6 +15,8 @@ import {
   GraduationCap,
   ListChecks,
   ImagePlus,
+  Upload,
+  Languages,
 } from "lucide-react";
 import { inputCls, selectCls, OptionLabel } from "@/components/tool-ui";
 import { downloadBlob } from "@/lib/pdf-utils";
@@ -26,10 +28,13 @@ import {
   STORAGE_KEY,
   buildSummary,
   buildResumeDocx,
+  sanitizeDocxFilename,
+  parseUploadedResume,
   type ResumeData,
   type ResumeTemplateId,
   type DateFormat,
   type SummaryTone,
+  type ResumeParseResult,
 } from "@/lib/resume";
 import {
   RESUME_FONTS,
@@ -52,6 +57,7 @@ const EMPTY: ResumeData = {
   experience: [{ id: "exp-1", role: "", company: "", start: "", end: "", current: false, bullets: "" }],
   education: [{ id: "edu-1", degree: "", school: "", start: "", end: "" }],
   skills: "",
+  languages: "",
 };
 
 function uid(prefix: string) {
@@ -85,14 +91,19 @@ export function ResumeBuilder() {
   const [themeId, setThemeId] = useState<string>("teal");
   const [photoOn, setPhotoOn] = useState(false);
   const [photo, setPhoto] = useState<string | null>(null);
+  const [photoSize, setPhotoSize] = useState<{ width: number; height: number } | null>(null);
   const [savedNote, setSavedNote] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [docxBusy, setDocxBusy] = useState(false);
   const [docxError, setDocxError] = useState<string | null>(null);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadResult, setUploadResult] = useState<ResumeParseResult | null>(null);
   const [profession, setProfession] = useState<string>(SUMMARY_PROFESSIONS[0]);
   const [tone, setTone] = useState<SummaryTone>("professional");
   const [writerNote, setWriterNote] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
 
   // Load a saved resume from this browser only, on first render.
   useEffect(() => {
@@ -105,11 +116,14 @@ export function ResumeBuilder() {
           dateFormat: DateFormat;
           fontId?: string | null;
           themeId?: string;
+          photoOn?: boolean;
         };
         if (parsed?.data) {
-          setData(parsed.data);
+          // Older saves have no languages field; fill it in.
+          setData({ ...EMPTY, ...parsed.data, languages: parsed.data.languages ?? "" });
           if (parsed.template) setTemplate(parsed.template);
           if (parsed.dateFormat) setDateFormat(parsed.dateFormat);
+          if (typeof parsed.photoOn === "boolean") setPhotoOn(parsed.photoOn);
           // Older saves have no font/theme; they keep the template defaults.
           if (typeof parsed.fontId === "string" && RESUME_FONTS.some((f) => f.id === parsed.fontId)) {
             setFontId(parsed.fontId);
@@ -135,8 +149,9 @@ export function ResumeBuilder() {
   const save = () => {
     try {
       // The photo is deliberately not saved: it can be large, and it is
-      // optional. Everything else is stored only in this browser.
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ data, template, dateFormat, fontId, themeId }));
+      // optional. Everything else is stored only in this browser — including
+      // the photo toggle (B6), so a reload does not silently drop the photo.
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ data, template, dateFormat, fontId, themeId, photoOn }));
       setSavedNote("Saved in this browser (localStorage). Nothing is sent to a server.");
     } catch {
       setSavedNote("Could not save — this browser's local storage may be full or disabled.");
@@ -153,6 +168,9 @@ export function ResumeBuilder() {
     setData(EMPTY);
     setPhoto(null);
     setPhotoOn(false);
+    setPhotoSize(null);
+    setUploadResult(null);
+    setUploadError(null);
     localStorage.removeItem(STORAGE_KEY);
     setSavedNote("Cleared. The saved copy in this browser was deleted too.");
   };
@@ -161,13 +179,57 @@ export function ResumeBuilder() {
     setDocxError(null);
     setDocxBusy(true);
     try {
-      const blob = await buildResumeDocx(data, dateFormat, { fontId, themeId, template });
-      const name = (data.fullName.trim() || "resume").replace(/\s+/g, "-");
+      const blob = await buildResumeDocx(data, dateFormat, {
+        fontId,
+        themeId,
+        template,
+        photo: photoOn && photo ? { dataUrl: photo, width: photoSize?.width ?? 200, height: photoSize?.height ?? 200 } : null,
+      });
+      const name = sanitizeDocxFilename(data.fullName.trim());
       downloadBlob(blob, `${name}-resume.docx`);
-    } catch {
-      setDocxError("Could not build the Word file. Please try again.");
+    } catch (err) {
+      setDocxError(err instanceof Error ? err.message : "Could not build the Word file. Please try again.");
     } finally {
       setDocxBusy(false);
+    }
+  };
+
+  /** Upload an existing PDF/DOCX resume, parse it on this device, and prefill the form. */
+  const onUploadResume = async (file: File | undefined) => {
+    if (!file) return;
+    setUploadError(null);
+    setUploadResult(null);
+    if (!/\.pdf$|\.docx$/i.test(file.name)) {
+      setUploadError("Please choose a PDF (.pdf) or Word (.docx) resume.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError("That file is over 10 MB. Please choose a smaller resume file.");
+      return;
+    }
+    const hasContent =
+      data.fullName.trim() || data.summary.trim() || data.skills.trim() || data.experience.some((e) => e.role.trim() || e.bullets.trim());
+    if (hasContent && !window.confirm("Uploading a resume replaces what is in the form now. Continue?")) return;
+    setUploadBusy(true);
+    try {
+      const result = await parseUploadedResume(file);
+      if (!result.found.length) {
+        setUploadError(
+          "We could not read any usable details from this file — it may be a scanned image or an unusual layout. You can still fill in the form by hand below.",
+        );
+        return;
+      }
+      // Keep the builder's row ids stable: reuse existing rows where the
+      // parsed data has fewer entries than the form already shows.
+      setData(result.data);
+      setUploadResult(result);
+      setSavedNote("Resume uploaded and parsed on this device — nothing was sent to a server. Check the fields below and fix anything the parser missed.");
+    } catch {
+      setUploadError(
+        "We could not read this file. It may be password-protected, damaged, or a scanned image with no text. You can still fill in the form by hand below.",
+      );
+    } finally {
+      setUploadBusy(false);
     }
   };
 
@@ -181,7 +243,13 @@ export function ResumeBuilder() {
     if (!file) return;
     if (!file.type.startsWith("image/")) return;
     const reader = new FileReader();
-    reader.onload = () => setPhoto(String(reader.result));
+    reader.onload = () => {
+      const dataUrl = String(reader.result);
+      setPhoto(dataUrl);
+      const img = new Image();
+      img.onload = () => setPhotoSize({ width: img.naturalWidth || 200, height: img.naturalHeight || 200 });
+      img.src = dataUrl;
+    };
     reader.readAsDataURL(file);
   };
 
@@ -190,10 +258,14 @@ export function ResumeBuilder() {
   return (
     <div>
       <style>{`
+        @page { size: A4; margin: 12mm 14mm; }
         @media print {
+          .no-print { display: none !important; }
           body * { visibility: hidden !important; }
           #resume-print, #resume-print * { visibility: visible !important; }
           #resume-print { position: absolute !important; left: 0; top: 0; width: 100% !important; max-width: none !important; box-shadow: none !important; padding: 0 !important; print-color-adjust: exact !important; -webkit-print-color-adjust: exact !important; }
+          #resume-print section { break-inside: avoid; }
+          #resume-print h1, #resume-print h2 { break-after: avoid; }
         }
       `}</style>
 
@@ -201,9 +273,10 @@ export function ResumeBuilder() {
         <p className="text-xs font-semibold uppercase tracking-wider text-teal-700">Resume builder</p>
         <h1 className="mt-2 font-display text-3xl font-bold text-slate-900 sm:text-4xl">Build a free resume that gets read</h1>
         <p className="mt-2 max-w-2xl leading-relaxed text-slate-600">
-          Fill in the form and watch the preview update live. Pick one of four original templates, choose a
+          Fill in the form and watch the preview update live. Pick one of ten original templates, choose a
           font — MS Word classics or stylish Canva-style fonts — and a colour theme, then export as PDF or
-          Word. Your details stay in your browser — nothing is uploaded, and saving uses only this
+          Word. Already have a resume? Upload it as PDF or Word and we&apos;ll fill in the form for you to
+          edit. Your details stay in your browser — nothing is uploaded, and saving uses only this
           browser&apos;s local storage.
         </p>
 
@@ -224,6 +297,24 @@ export function ResumeBuilder() {
           >
             <FileDown className="h-4 w-4" /> {docxBusy ? "Building…" : "Download .docx"}
           </button>
+          <button
+            type="button"
+            onClick={() => uploadInputRef.current?.click()}
+            disabled={uploadBusy}
+            className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 hover:border-teal-600 disabled:opacity-50"
+          >
+            <Upload className="h-4 w-4" /> {uploadBusy ? "Reading your resume…" : "Upload resume (PDF / Word)"}
+          </button>
+          <input
+            ref={uploadInputRef}
+            type="file"
+            accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            className="hidden"
+            onChange={(e) => {
+              void onUploadResume(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
           <button
             type="button"
             onClick={save}
@@ -248,6 +339,22 @@ export function ResumeBuilder() {
         </div>
         {savedNote && (
           <p className="mt-3 rounded-xl bg-teal-50 px-4 py-2.5 text-sm text-teal-900">{savedNote}</p>
+        )}
+        {uploadResult && (
+          <div className="mt-3 rounded-xl border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm text-teal-900">
+            <p className="font-semibold">What we found in your file — check it below and correct anything we missed:</p>
+            <p className="mt-1">{uploadResult.found.join(" · ")}</p>
+            {uploadResult.warnings.length > 0 && (
+              <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                {uploadResult.warnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+        {uploadError && (
+          <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-800">{uploadError}</p>
         )}
         {docxError && (
           <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-800">{docxError}</p>
@@ -428,12 +535,30 @@ export function ResumeBuilder() {
                       <ImagePlus className="h-4 w-4" /> {photo ? "Change photo" : "Choose a photo"}
                     </button>
                     {photo && (
-                      <button type="button" onClick={() => setPhoto(null)} className="text-sm font-medium text-red-700">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPhoto(null);
+                          setPhotoSize(null);
+                        }}
+                        className="text-sm font-medium text-red-700"
+                      >
                         Remove
                       </button>
                     )}
                     <span className="text-xs text-slate-500">Photo is kept in memory only and is not saved.</span>
                   </div>
+                )}
+                {photoOn && template === "ats" && (
+                  <p className="mt-2 text-xs leading-relaxed text-amber-800">
+                    Your photo is hidden on the ATS-friendly template and never included in its Word export —
+                    applicant tracking systems read plain text best. Switch to another template to show it.
+                  </p>
+                )}
+                {photoOn && (template === "simple" || template === "two-column") && (
+                  <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                    This template has no photo by design, so your photo is hidden here and in its Word export.
+                  </p>
                 )}
               </div>
             </Section>
@@ -695,7 +820,7 @@ export function ResumeBuilder() {
             {/* Skills */}
             <Section icon={<ListChecks className="h-5 w-5" />} title="Skills">
               <div>
-                <OptionLabel>Skills — separated by commas</OptionLabel>
+                <OptionLabel>Skills — separated by commas, or one per line</OptionLabel>
                 <textarea
                   className={`${inputCls} min-h-20 resize-y`}
                   value={data.skills}
@@ -704,6 +829,23 @@ export function ResumeBuilder() {
                 />
                 <p className="mt-1.5 text-xs text-slate-500">
                   List the skills the job asks for, using the employer&apos;s own words where you honestly have them.
+                </p>
+              </div>
+            </Section>
+
+            {/* Languages */}
+            <Section icon={<Languages className="h-5 w-5" />} title="Languages">
+              <div>
+                <OptionLabel>Languages — separated by commas, or one per line</OptionLabel>
+                <textarea
+                  className={`${inputCls} min-h-20 resize-y`}
+                  value={data.languages}
+                  onChange={(e) => set("languages", e.target.value)}
+                  placeholder="English (native), Spanish (conversational)"
+                />
+                <p className="mt-1.5 text-xs text-slate-500">
+                  Add your level in brackets if you like, for example &ldquo;French (fluent)&rdquo;. Languages
+                  appear in their own section in the preview and in the Word export.
                 </p>
               </div>
             </Section>

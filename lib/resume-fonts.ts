@@ -57,6 +57,12 @@ export const TEMPLATE_DEFAULT_FONTS: Record<ResumeTemplateId, string> = {
   classic: "georgia",
   minimal: "calibri",
   ats: "arial",
+  "two-column": "calibri",
+  "fresh-grad": "montserrat",
+  "navy-sidebar": "calibri",
+  pastel: "lora",
+  bold: "montserrat",
+  simple: "garamond",
 };
 
 export interface ResumeTheme {

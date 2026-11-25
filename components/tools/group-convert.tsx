@@ -54,6 +54,23 @@ function useFiles(multiple: boolean) {
 }
 
 // ---------------------------------------------------------------- JPG to PDF
+// BUG-11 (QA-C): "Fit" used raw pixel counts as points, so a 1200x800 px
+// photo became a 1200x800 pt page (~16.7x11.1 in). Pixels are not points:
+// convert at 96 dpi (px * 72/96) and clamp the page to A4 bounds, keeping
+// the image aspect and the requested margin. Scan-to-PDF
+// (group-convert2.tsx) has its own copy of this sizing and should match
+// this helper; that file is owned by another fixer.
+const FIT_MAX_W = 595; // A4 width in pt
+const FIT_MAX_H = 842; // A4 height in pt
+function fitImagePageSize(imgW: number, imgH: number, margin: number): [number, number] {
+  const ptW = (imgW * 72) / 96;
+  const ptH = (imgH * 72) / 96;
+  const availW = Math.max(72, FIT_MAX_W - margin * 2);
+  const availH = Math.max(72, FIT_MAX_H - margin * 2);
+  const scale = Math.min(availW / ptW, availH / ptH, 1);
+  return [ptW * scale + margin * 2, ptH * scale + margin * 2];
+}
+
 export function JpgToPdfTool() {
   const { files, add, remove, move } = useFiles(true);
   const r = useResult();
@@ -89,8 +106,7 @@ export function JpgToPdfTool() {
           w = 612;
           h = 792;
         } else {
-          w = img.width;
-          h = img.height;
+          [w, h] = fitImagePageSize(img.width, img.height, margin);
         }
         const page = out.addPage([w, h]);
         const availW = w - margin * 2;
@@ -123,7 +139,7 @@ export function JpgToPdfTool() {
           <select className={selectCls} value={pageSize} onChange={(e) => setPageSize(e.target.value as "a4" | "letter" | "fit")}>
             <option value="a4">A4</option>
             <option value="letter">Letter (US)</option>
-            <option value="fit">Fit each image (page = image size)</option>
+            <option value="fit">Fit each image (page fits the image, max A4)</option>
           </select>
         </div>
         <div>
@@ -225,6 +241,10 @@ export function RotateTool() {
       const { degrees: deg } = await import("pdf-lib");
       const doc = await loadPdf(await fileBytes(files[0]));
       const total = doc.getPageCount();
+      // B-05 (QA-B): same 0-page guard Fixer 2 added to Compress/Unlock.
+      // Without it, load + save turns a true 0-page PDF into a 1-page blank
+      // PDF (pdf-lib's save() emits a blank page for an empty document).
+      if (total === 0) throw new Error("This PDF has no pages to rotate.");
       const targets =
         scope === "all"
           ? Array.from({ length: total }, (_, i) => i)

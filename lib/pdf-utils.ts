@@ -101,11 +101,37 @@ export async function renderPageThumb(
 }
 
 /**
- * Parse a page-range string like "1-3, 5, 8-10" into sorted unique 1-based
- * page numbers, clamped to `totalPages`. Invalid parts are ignored.
+ * Count fillable AcroForm fields in a loaded document (0 when there is no
+ * form). pdf-lib's copyPages does NOT copy the AcroForm dictionary, so
+ * Merge/Split/Organize silently drop these fields — callers use this count
+ * to warn the user instead (B-01).
+ */
+export function countFormFields(doc: PDFDocument): number {
+  try {
+    return doc.getForm().getFields().length;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Parse a page-range string like "1-3, 5, 8-10" into 1-based page numbers,
+ * clamped to `totalPages`. Invalid parts are ignored.
+ *
+ * B-02: the order the user wrote is preserved (duplicates removed, first
+ * occurrence kept) — "5, 2" stays [5, 2], it is NOT silently re-sorted to
+ * [2, 5]. A reversed range expands in the direction written: "3-1" gives
+ * [3, 2, 1]. Callers that only need a set (Rotate, Crop) are unaffected.
  */
 export function parseRanges(input: string, totalPages: number): number[] {
-  const out = new Set<number>();
+  const out: number[] = [];
+  const seen = new Set<number>();
+  const add = (n: number) => {
+    if (n >= 1 && n <= totalPages && !seen.has(n)) {
+      seen.add(n);
+      out.push(n);
+    }
+  };
   for (const part of input.split(",")) {
     const p = part.trim();
     if (!p) continue;
@@ -113,13 +139,14 @@ export function parseRanges(input: string, totalPages: number): number[] {
     if (m) {
       const a = parseInt(m[1], 10);
       const b = parseInt(m[2], 10);
-      const lo = Math.min(a, b);
-      const hi = Math.max(a, b);
-      for (let i = lo; i <= hi; i++) if (i >= 1 && i <= totalPages) out.add(i);
+      if (a <= b) {
+        for (let i = a; i <= b; i++) add(i);
+      } else {
+        for (let i = a; i >= b; i--) add(i);
+      }
     } else if (/^\d+$/.test(p)) {
-      const n = parseInt(p, 10);
-      if (n >= 1 && n <= totalPages) out.add(n);
+      add(parseInt(p, 10));
     }
   }
-  return [...out].sort((a, b) => a - b);
+  return out;
 }

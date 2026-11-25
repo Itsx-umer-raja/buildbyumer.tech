@@ -12,7 +12,7 @@ import {
   inputCls,
 } from "@/components/tool-ui";
 import { downloadBytes, fileBytes, formatBytes, loadPdf } from "@/lib/pdf-utils";
-import { encryptPdf } from "@/lib/pdf-encrypt";
+import { encryptPdf, looksEncrypted } from "@/lib/pdf-encrypt";
 
 // ---------------------------------------------------------------- Protect
 export function ProtectTool() {
@@ -32,6 +32,17 @@ export function ProtectTool() {
     }
     if (password.length < 4) {
       setError("Choose a password of at least 4 characters.");
+      return;
+    }
+    // B-08: characters above U+00FF (emoji, CJK, ✓, …) have no single-byte
+    // PDF representation, so a file protected with one could never be opened
+    // with the same password. Reject them here with a clear message instead
+    // of letting the user lock themselves out. Accented Latin letters (ä, ß)
+    // are fine and now work correctly (see lib/pdf-encrypt.ts).
+    if (/[^\x00-\xFF]/.test(password)) {
+      setError(
+        "That password contains a character (for example an emoji, Chinese/Japanese/Korean character or ✓) that PDF readers cannot use in a password — the file would not open afterwards. Use Latin letters, digits and symbols instead; accented letters such as ä are fine.",
+      );
       return;
     }
     if (password !== confirm) {
@@ -75,7 +86,9 @@ export function ProtectTool() {
         </div>
       </div>
       <p className="mt-3 text-sm text-slate-500">
-        Keep the password safe — there is no way to recover it. This tool uses 40-bit RC4
+        Keep the password safe — there is no way to recover it. Use Latin letters, digits and
+        symbols (accented letters such as ä are fine); emoji and Chinese/Japanese/Korean
+        characters cannot be used in a PDF password. This tool uses 40-bit RC4
         encryption, the basic standard level. It stops casual opening without the password, but
         it is not strong enough for highly sensitive documents.
       </p>
@@ -97,7 +110,7 @@ export function ProtectTool() {
 export function UnlockTool() {
   const [file, setFile] = useState<File | null>(null);
   const [password, setPassword] = useState("");
-  const [result, setResult] = useState<{ bytes: Uint8Array; filename: string; detail: string } | null>(null);
+  const [result, setResult] = useState<{ bytes: Uint8Array; filename: string; detail: string; warning?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -116,6 +129,12 @@ export function UnlockTool() {
     try {
       const { openPdfjs, renderPageToJpeg } = await import("@/lib/pdf-utils");
       const original = await fileBytes(file);
+      // B-09: never rasterise a file that was never locked — that destroyed
+      // its selectable text (and doubled its page size) for nothing. Refuse
+      // before even asking pdfjs for the password.
+      if (!looksEncrypted(original)) {
+        throw new Error("This PDF is not password-protected, so there is nothing to unlock. The file was left unchanged.");
+      }
       let opened;
       try {
         opened = await openPdfjs(original, password);
@@ -127,20 +146,34 @@ export function UnlockTool() {
         throw e;
       }
       const { doc, numPages } = opened;
+      if (numPages === 0) throw new Error("This PDF has no pages to unlock.");
       // Rebuild the document from rendered pages: the password is gone, and
       // the output is an ordinary, unprotected PDF.
       const out = await PDFDocument.create();
       for (let i = 1; i <= numPages; i++) {
         const blob = await renderPageToJpeg(doc, i, 2, 0.9);
         const img = await out.embedJpg(new Uint8Array(await blob.arrayBuffer()));
-        const page = out.addPage([img.width, img.height]);
-        page.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
+        // B-04: rendering at scale 2 makes the image 2× the page in pixels;
+        // using its pixel size as the page size made pages 2× too big
+        // (612×792 pt became 1224×1584 pt). Keep the original page size.
+        const page = await doc.getPage(i);
+        const vp = page.getViewport({ scale: 1 });
+        const pageSize: [number, number] = [vp.width, vp.height];
+        const newPage = out.addPage(pageSize);
+        newPage.drawImage(img, { x: 0, y: 0, width: pageSize[0], height: pageSize[1] });
       }
       const bytes = await out.save();
       setResult({
         bytes,
         filename: "unlocked.pdf",
-        detail: `Password removed from a ${numPages}-page PDF (${formatBytes(bytes.length)}). The unlocked copy opens without a password. It was rebuilt from rendered pages, so its text is not selectable.`,
+        detail: `Password removed from a ${numPages}-page PDF (${formatBytes(bytes.length)}). The unlocked copy opens without a password and keeps its original page size. It was rebuilt from rendered pages, so its text is not selectable.`,
+        // B-10: the rebuild is inherently lossy (pdf-lib cannot decrypt a
+        // PDF while keeping its vectors), and on text PDFs it is also much
+        // bigger than the original. Say so plainly instead of hiding it.
+        warning:
+          bytes.length > original.length
+            ? `The unlocked copy (${formatBytes(bytes.length)}) is larger than the protected original (${formatBytes(original.length)}) because every page was rebuilt as an image, and its text is not selectable. That is the cost of removing the password with this tool.`
+            : undefined,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unlocking failed. The file may be damaged or use encryption this tool cannot handle.");
@@ -168,6 +201,7 @@ export function UnlockTool() {
         <ResultCard
           title="Your unlocked PDF is ready"
           detail={result.detail}
+          warning={result.warning}
           filename={result.filename}
           onDownload={() => downloadBytes(result.bytes, result.filename)}
         />

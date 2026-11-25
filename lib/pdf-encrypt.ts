@@ -119,10 +119,18 @@ const PADDING = new Uint8Array([
 ]);
 
 function padPassword(password: string): Uint8Array {
-  const bytes = new TextEncoder().encode(password);
+  // PDF passwords are byte strings (PDF spec algorithm 3.2 / 3.5): each
+  // character is a SINGLE byte. Readers derive the key with the same rule —
+  // pdfjs-dist's stringToBytes is `charCodeAt(i) & 0xff`. The old code used
+  // TextEncoder (UTF-8), so e.g. "ä" became 2 bytes (0xC3 0xA4) here but
+  // 1 byte (0xE4) in every reader, and the same password could never open
+  // the file (B-08: user locks themselves out). Encode Latin-1 instead.
+  // Characters above U+00FF have no single-byte form at all; encryptPdf
+  // rejects those before calling this, so this never silently truncates one.
   const out = new Uint8Array(32);
-  out.set(bytes.slice(0, 32));
-  if (bytes.length < 32) out.set(PADDING.slice(0, 32 - bytes.length), bytes.length);
+  const n = Math.min(password.length, 32);
+  for (let i = 0; i < n; i++) out[i] = password.charCodeAt(i) & 0xff;
+  if (password.length < 32) out.set(PADDING.slice(0, 32 - password.length), password.length);
   return out;
 }
 
@@ -246,6 +254,17 @@ export function encryptPdf(
   ownerPassword?: string,
 ): Uint8Array {
   if (!userPassword) throw new Error("A password is required to protect a PDF.");
+  // B-08: a password character above U+00FF (emoji, CJK, ✓, …) has no
+  // single-byte PDF representation, so no reader can reliably reproduce the
+  // key we would derive from it. Refuse loudly instead of producing a file
+  // the same password cannot open. Latin-1 characters (ä, ß, é, …) are fine.
+  for (const pw of [userPassword, ownerPassword]) {
+    if (pw && /[^\x00-\xFF]/.test(pw)) {
+      throw new Error(
+        "Password contains a character (for example an emoji, Chinese/Japanese/Korean character or ✓) that PDF readers cannot represent in a password. Use Latin letters, digits and symbols instead — accented letters such as ä are fine.",
+      );
+    }
+  }
 
   const userPad = padPassword(userPassword);
   const ownerPad = padPassword(ownerPassword || userPassword);
@@ -363,8 +382,11 @@ export function encryptPdf(
 
 /** Quick check: does this PDF carry an /Encrypt dictionary? */
 export function looksEncrypted(pdfBytes: Uint8Array): boolean {
+  // The trailer (which holds /Encrypt) sits at the end of the file; check a
+  // generous tail window plus the head. 16 KB covers trailers with long
+  // metadata / ID strings that a 4 KB window could miss.
   const head = bytesToLatin1(pdfBytes.slice(0, Math.min(pdfBytes.length, 4096)));
   if (head.includes("/Encrypt")) return true;
-  const tail = bytesToLatin1(pdfBytes.slice(Math.max(0, pdfBytes.length - 4096)));
+  const tail = bytesToLatin1(pdfBytes.slice(Math.max(0, pdfBytes.length - 16384)));
   return tail.includes("/Encrypt");
 }

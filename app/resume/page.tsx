@@ -38,7 +38,7 @@ const RESUME_FONT_VARS = [
 export const metadata: Metadata = {
   title: "Free Resume Builder — Make a Professional Resume Online",
   description:
-    "Build a professional resume free in your browser: four original templates including an ATS-friendly one, live preview, PDF and Word export. Nothing is uploaded.",
+    "Build a professional resume free in your browser: ten original templates including an ATS-friendly one, live preview, PDF and Word export. Upload an existing resume to edit it. Nothing is uploaded.",
   keywords: ["free resume builder", "free resume builder online", "resume maker", "resume maker online"],
   alternates: { canonical: "/resume" },
   openGraph: {
@@ -70,7 +70,7 @@ export default function ResumePage() {
         operatingSystem: "Web browser",
         offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
         description:
-          "Free resume builder with four original templates including an ATS-friendly one, live preview, and PDF and Word export. Runs in the browser; nothing is uploaded.",
+          "Free resume builder with ten original templates including an ATS-friendly one, live preview, and PDF and Word export. Runs in the browser; nothing is uploaded.",
       },
       {
         "@type": "BreadcrumbList",

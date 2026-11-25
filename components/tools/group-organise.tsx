@@ -13,7 +13,7 @@ import {
   selectCls,
   inputCls,
 } from "@/components/tool-ui";
-import { downloadBytes, downloadBlob, fileBytes, formatBytes, loadPdf, parseRanges } from "@/lib/pdf-utils";
+import { downloadBytes, downloadBlob, fileBytes, formatBytes, loadPdf, parseRanges, countFormFields } from "@/lib/pdf-utils";
 
 interface Result {
   bytes: Uint8Array | Blob;
@@ -69,20 +69,34 @@ export function MergeTool() {
     try {
       const out = await PDFDocument.create();
       let totalPages = 0;
+      let formFieldsLost = 0;
+      const formFiles: string[] = [];
       for (const f of files) {
         if (f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf")) {
           throw new Error(`"${f.name}" does not look like a PDF file.`);
         }
         const src = await loadPdf(await fileBytes(f));
+        // B-01: copyPages does not copy the AcroForm dictionary, so fillable
+        // fields are lost. Count them here so the user is warned, not surprised.
+        const fields = countFormFields(src);
+        if (fields > 0) {
+          formFieldsLost += fields;
+          formFiles.push(f.name);
+        }
         const pages = await out.copyPages(src, src.getPageIndices());
         pages.forEach((p) => out.addPage(p));
         totalPages += pages.length;
       }
+      if (totalPages === 0) throw new Error("None of the chosen files contain any pages to merge.");
       const bytes = await out.save();
       r.setResult({
         bytes,
         filename: "merged.pdf",
         detail: `${files.length} files merged into one PDF with ${totalPages} pages (${formatBytes(bytes.length)}).`,
+        warning:
+          formFieldsLost > 0
+            ? `${formFieldsLost} fillable form field(s) from ${formFiles.join(", ")} were lost — merging copies pages but not form fields, so the merged file has no fillable fields. The filled-in values are gone too.`
+            : undefined,
       });
     } catch (e) {
       r.setError(e instanceof Error ? e.message : "Merging failed. One of the files may be damaged or password-protected.");
@@ -98,7 +112,7 @@ export function MergeTool() {
       <p className="mt-3 text-sm text-slate-500">Use the arrows to change the order pages appear in the merged file.</p>
       <ProcessButton busy={r.busy} disabled={files.length < 2} label="Merge PDFs" busyLabel="Merging…" onClick={run} />
       <ErrorNote message={r.error} />
-      {r.result && <ResultCard title="Your merged PDF is ready" detail={r.result.detail} filename={r.result.filename} onDownload={r.download} />}
+      {r.result && <ResultCard title="Your merged PDF is ready" detail={r.result.detail} warning={r.result.warning} filename={r.result.filename} onDownload={r.download} />}
     </div>
   );
 }
@@ -121,6 +135,13 @@ export function SplitTool() {
     try {
       const src = await loadPdf(await fileBytes(files[0]));
       const total = src.getPageCount();
+      if (total === 0) throw new Error("This PDF has no pages to split.");
+      // B-01: splitting copies pages, not the AcroForm — warn up front.
+      const formFields = countFormFields(src);
+      const formWarning =
+        formFields > 0
+          ? `${formFields} fillable form field(s) in this file were lost — splitting copies pages but not form fields, so the output has no fillable fields.`
+          : undefined;
       if (mode === "every") {
         const zip = new JSZip();
         const base = files[0].name.replace(/\.pdf$/i, "");
@@ -136,6 +157,7 @@ export function SplitTool() {
           isBlob: true,
           filename: `${base}-split.zip`,
           detail: `Split into ${total} one-page PDFs, downloaded as a ZIP (${formatBytes(blob.size)}).`,
+          warning: formWarning,
         });
       } else {
         const pages = parseRanges(ranges, total);
@@ -147,7 +169,8 @@ export function SplitTool() {
         r.setResult({
           bytes,
           filename: "split.pdf",
-          detail: `Extracted ${pages.length} page(s) (${pages.join(", ")}) from a ${total}-page PDF (${formatBytes(bytes.length)}).`,
+          detail: `Extracted ${pages.length} page(s) (${pages.join(", ")}) from a ${total}-page PDF (${formatBytes(bytes.length)}). Pages are in the order you listed them.`,
+          warning: formWarning,
         });
       }
     } catch (e) {
@@ -178,7 +201,7 @@ export function SplitTool() {
       </div>
       <ProcessButton busy={r.busy} disabled={files.length === 0} label="Split PDF" busyLabel="Splitting…" onClick={run} />
       <ErrorNote message={r.error} />
-      {r.result && <ResultCard title="Your split file is ready" detail={r.result.detail} filename={r.result.filename} onDownload={r.download} />}
+      {r.result && <ResultCard title="Your split file is ready" detail={r.result.detail} warning={r.result.warning} filename={r.result.filename} onDownload={r.download} />}
     </div>
   );
 }
@@ -187,7 +210,7 @@ export function SplitTool() {
 export function CompressTool() {
   const { files, add, remove } = useFiles(false);
   const r = useResult();
-  const [level, setLevel] = useState<"light" | "medium" | "strong">("medium");
+  const [level, setLevel] = useState<"light" | "medium" | "strong">("light");
 
   const run = async () => {
     r.setError(null);
@@ -202,35 +225,59 @@ export function CompressTool() {
       const originalSize = original.length;
       let bytes: Uint8Array;
       let note: string;
-      if (level === "light") {
+      let warning: string | undefined;
+      const lightSave = async () => {
         const doc = await loadPdf(original);
-        bytes = await doc.save({ useObjectStreams: true });
+        if (doc.getPageCount() === 0) throw new Error("This PDF has no pages to compress.");
+        return doc.save({ useObjectStreams: true });
+      };
+      if (level === "light") {
+        bytes = await lightSave();
         note = "Light mode re-saves the file with tighter internal storage. Text stays selectable.";
       } else {
         // Rebuild pages as JPEG images at a lower quality.
         const { openPdfjs, renderPageToJpeg } = await import("@/lib/pdf-utils");
         const { doc, numPages } = await openPdfjs(original);
+        if (numPages === 0) throw new Error("This PDF has no pages to compress.");
         const quality = level === "medium" ? 0.65 : 0.4;
         const scale = level === "medium" ? 1.5 : 1.1;
         const out = await PDFDocument.create();
         for (let i = 1; i <= numPages; i++) {
           const blob = await renderPageToJpeg(doc, i, scale, quality);
           const img = await out.embedJpg(new Uint8Array(await blob.arrayBuffer()));
-          const page = out.addPage([img.width, img.height]);
-          page.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
+          // B-04: the rendered image is `scale`× the page in pixels — using
+          // its pixel size as the page size made pages 1.5×/1.1× too big.
+          // Keep the ORIGINAL page size (viewport at scale 1, which also
+          // accounts for page rotation) and draw the image into that box.
+          const page = await doc.getPage(i);
+          const vp = page.getViewport({ scale: 1 });
+          const pageSize: [number, number] = [vp.width, vp.height];
+          const newPage = out.addPage(pageSize);
+          newPage.drawImage(img, { x: 0, y: 0, width: pageSize[0], height: pageSize[1] });
         }
-        bytes = await out.save({ useObjectStreams: true });
-        note =
-          level === "medium"
-            ? "Medium mode rebuilt each page as an image (JPEG quality 65%). Text in the result is not selectable."
-            : "Strong mode rebuilt each page as a smaller image (JPEG quality 40%). Text in the result is not selectable.";
+        const rasterBytes = await out.save({ useObjectStreams: true });
+        if (rasterBytes.length >= originalSize) {
+          // B-03: rasterising a text-heavy PDF makes it MUCH bigger
+          // (measured: 2,639 B → 44,788 B, +1,597%) and destroys the
+          // selectable text — the worst outcome for the most common input.
+          // Never hand that back as a "compression". Fall back to Light
+          // (keeps the text and the size) and say so plainly.
+          bytes = await lightSave();
+          note = `The ${level} image rebuild would have made this file bigger (${formatBytes(rasterBytes.length)} instead of ${formatBytes(originalSize)}) and removed all selectable text, so it was not used. The file was re-saved with Light instead — text stays selectable.`;
+          warning = `The ${level} rebuild would have produced a larger file (${formatBytes(rasterBytes.length)} vs the original ${formatBytes(originalSize)}) and turned every page into an image, so all selectable text would have been lost. You received the smaller Light re-save instead. Medium/Strong only help scanned or photo-heavy PDFs.`;
+        } else {
+          bytes = rasterBytes;
+          note =
+            level === "medium"
+              ? "Medium mode rebuilt each page as an image (JPEG quality 65%). Text in the result is not selectable, but each page kept its original size."
+              : "Strong mode rebuilt each page as a smaller image (JPEG quality 40%). Text in the result is not selectable, but each page kept its original size.";
+        }
       }
       const saved = originalSize - bytes.length;
       const pct = Math.round((saved / originalSize) * 100);
-      const warning =
-        bytes.length >= originalSize
-          ? `The compressed file (${formatBytes(bytes.length)}) is not smaller than the original (${formatBytes(originalSize)}). This can happen with files that are already tightly packed — the result is still a valid PDF.`
-          : undefined;
+      if (!warning && bytes.length >= originalSize) {
+        warning = `The compressed file (${formatBytes(bytes.length)}) is not smaller than the original (${formatBytes(originalSize)}), and — for Medium/Strong — its text is no longer selectable. This can happen with files that are already tightly packed.`;
+      }
       r.setResult({
         bytes,
         filename: "compressed.pdf",
@@ -251,14 +298,15 @@ export function CompressTool() {
       <div className="mt-5 max-w-sm">
         <OptionLabel>Compression level</OptionLabel>
         <select className={selectCls} value={level} onChange={(e) => setLevel(e.target.value as "light" | "medium" | "strong")}>
-          <option value="light">Light — re-save, keeps text selectable</option>
+          <option value="light">Light — re-save, keeps text selectable (recommended)</option>
           <option value="medium">Medium — rebuild pages as images, good balance</option>
           <option value="strong">Strong — smallest file, lower image quality</option>
         </select>
         <p className="mt-2 text-sm text-slate-500">
-          Medium and Strong rebuild pages as images, so text stops being selectable. How much a
-          file shrinks depends on what is inside it — scanned pages shrink a lot, text-only files
-          barely shrink at all.
+          Medium and Strong rebuild pages as images, so text stops being selectable. They only
+          shrink scanned or photo-heavy PDFs — on a text-only PDF they can make the file much
+          bigger, so if that happens you will get the Light re-save instead, with a warning.
+          Light is the default because it never makes a file bigger or removes text.
         </p>
       </div>
       <ProcessButton busy={r.busy} disabled={files.length === 0} label="Compress PDF" busyLabel="Compressing…" onClick={run} />
