@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --color-ink: #14201f;
+  --color-pine: #0f766e;
+  --color-pine-deep: #0b4f4a;
+  --color-pine-soft: #e6f2f0;
+  --color-amber-glow: #d97706;
+  --color-paper: #faf9f6;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}

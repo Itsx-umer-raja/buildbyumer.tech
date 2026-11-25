@@ -1,0 +1,177 @@
+"use client";
+
+import { useState } from "react";
+import { PDFDocument } from "pdf-lib";
+import {
+  Dropzone,
+  FileList,
+  ProcessButton,
+  ResultCard,
+  ErrorNote,
+  OptionLabel,
+  inputCls,
+} from "@/components/tool-ui";
+import { downloadBytes, fileBytes, formatBytes, loadPdf } from "@/lib/pdf-utils";
+import { encryptPdf } from "@/lib/pdf-encrypt";
+
+// ---------------------------------------------------------------- Protect
+export function ProtectTool() {
+  const [file, setFile] = useState<File | null>(null);
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [result, setResult] = useState<{ bytes: Uint8Array; filename: string; detail: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const run = async () => {
+    setError(null);
+    setResult(null);
+    if (!file) {
+      setError("Choose a PDF file to protect.");
+      return;
+    }
+    if (password.length < 4) {
+      setError("Choose a password of at least 4 characters.");
+      return;
+    }
+    if (password !== confirm) {
+      setError("The two passwords do not match.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const doc = await loadPdf(await fileBytes(file));
+      // Object streams would hide objects from the encryptor — save plain.
+      const plain = await doc.save({ useObjectStreams: false });
+      const encrypted = encryptPdf(plain, password);
+      setResult({
+        bytes: encrypted,
+        filename: "protected.pdf",
+        detail: `Password protection added (${formatBytes(encrypted.length)}). The file now asks for the password before opening in a standard PDF reader. It uses 40-bit RC4 encryption — the basic, widely compatible level.`,
+      });
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Protection failed. The file may be damaged or already password-protected.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <Dropzone accept="application/pdf,.pdf" onFiles={(fs) => setFile(fs[0] ?? null)} hint="One PDF file" />
+      {file && <FileList files={[file]} onRemove={() => setFile(null)} />}
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <div>
+          <OptionLabel>New password</OptionLabel>
+          <input className={inputCls} type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 4 characters" />
+        </div>
+        <div>
+          <OptionLabel>Confirm password</OptionLabel>
+          <input className={inputCls} type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Repeat the password" />
+        </div>
+      </div>
+      <p className="mt-3 text-sm text-slate-500">
+        Keep the password safe — there is no way to recover it. This tool uses 40-bit RC4
+        encryption, the basic standard level. It stops casual opening without the password, but
+        it is not strong enough for highly sensitive documents.
+      </p>
+      <ProcessButton busy={busy} disabled={!file} label="Protect PDF" busyLabel="Protecting…" onClick={run} />
+      <ErrorNote message={error} />
+      {result && (
+        <ResultCard
+          title="Your protected PDF is ready"
+          detail={result.detail}
+          filename={result.filename}
+          onDownload={() => downloadBytes(result.bytes, result.filename)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- Unlock
+export function UnlockTool() {
+  const [file, setFile] = useState<File | null>(null);
+  const [password, setPassword] = useState("");
+  const [result, setResult] = useState<{ bytes: Uint8Array; filename: string; detail: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const run = async () => {
+    setError(null);
+    setResult(null);
+    if (!file) {
+      setError("Choose a password-protected PDF file.");
+      return;
+    }
+    if (!password) {
+      setError("Enter the password for this PDF.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { openPdfjs, renderPageToJpeg } = await import("@/lib/pdf-utils");
+      const original = await fileBytes(file);
+      let opened;
+      try {
+        opened = await openPdfjs(original, password);
+      } catch (e) {
+        const name = (e as Error)?.name ?? "";
+        if (name === "PasswordException" || /password/i.test((e as Error)?.message ?? "")) {
+          throw new Error("Wrong password — this PDF could not be opened with the password you entered. Check it and try again.");
+        }
+        throw e;
+      }
+      const { doc, numPages } = opened;
+      // Rebuild the document from rendered pages: the password is gone, and
+      // the output is an ordinary, unprotected PDF.
+      const out = await PDFDocument.create();
+      for (let i = 1; i <= numPages; i++) {
+        const blob = await renderPageToJpeg(doc, i, 2, 0.9);
+        const img = await out.embedJpg(new Uint8Array(await blob.arrayBuffer()));
+        const page = out.addPage([img.width, img.height]);
+        page.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
+      }
+      const bytes = await out.save();
+      setResult({
+        bytes,
+        filename: "unlocked.pdf",
+        detail: `Password removed from a ${numPages}-page PDF (${formatBytes(bytes.length)}). The unlocked copy opens without a password. It was rebuilt from rendered pages, so its text is not selectable.`,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unlocking failed. The file may be damaged or use encryption this tool cannot handle.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="mb-5 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm leading-relaxed text-teal-900">
+        <strong>Only for passwords you already know.</strong> This tool never guesses, cracks
+        or bypasses passwords. If you enter the wrong password, it shows an error and does
+        nothing. If you have forgotten the password, this tool cannot help.
+      </div>
+      <Dropzone accept="application/pdf,.pdf" onFiles={(fs) => setFile(fs[0] ?? null)} hint="One password-protected PDF" />
+      {file && <FileList files={[file]} onRemove={() => setFile(null)} />}
+      <div className="mt-5 max-w-sm">
+        <OptionLabel>Current PDF password</OptionLabel>
+        <input className={inputCls} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="The password you already know" />
+      </div>
+      <ProcessButton busy={busy} disabled={!file} label="Unlock PDF" busyLabel="Unlocking…" onClick={run} />
+      <ErrorNote message={error} />
+      {result && (
+        <ResultCard
+          title="Your unlocked PDF is ready"
+          detail={result.detail}
+          filename={result.filename}
+          onDownload={() => downloadBytes(result.bytes, result.filename)}
+        />
+      )}
+    </div>
+  );
+}
