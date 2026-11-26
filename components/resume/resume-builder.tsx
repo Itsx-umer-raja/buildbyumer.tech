@@ -20,6 +20,7 @@ import {
   BookOpen,
   Quote,
   PenLine,
+  Check,
 } from "lucide-react";
 import { inputCls, selectCls, OptionLabel } from "@/components/tool-ui";
 import { downloadBlob } from "@/lib/pdf-utils";
@@ -386,6 +387,18 @@ export function ResumeBuilder() {
   const [viewportHeight, setViewportHeight] = useState(0);
   const sheetWrapRef = useRef<HTMLDivElement | null>(null);
 
+  // On a phone the preview sits BELOW the form, so tapping a template or
+  // loading a sample would change something the user cannot see — it looked
+  // like the button did nothing. After any template/sample action, bring the
+  // preview into view on narrow screens. On desktop the preview sits beside
+  // the form, so no scroll is needed there. (The preview column carries
+  // id="resume-live-preview"; useTemplate scrolls to the same id.)
+  const scrollToPreview = () => {
+    if (typeof window === "undefined") return;
+    if (window.innerWidth >= 1024) return;
+    document.getElementById("resume-live-preview")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   // Load a saved resume from this browser only, on first render.
   // The form renders immediately (server-side too) so the page is usable
   // without JavaScript; the saved copy is applied on top once it loads.
@@ -536,6 +549,7 @@ export function ResumeBuilder() {
   const loadSample = () => {
     if (!isResumeEmpty(data) && !window.confirm("Loading the sample replaces what is in the form now. Continue?")) return;
     applySample(template);
+    scrollToPreview();
   };
 
   /** "Use this sample" on a template card: selects that template and loads
@@ -545,9 +559,26 @@ export function ResumeBuilder() {
     setTemplate(id);
     if (isResumeEmpty(data)) {
       applySample(id);
+      scrollToPreview();
       return;
     }
     setConfirmSampleFor(id);
+  };
+
+  /** "Use this Template" on a template card: selects that template without
+   * touching the form data, and shows the choice in the live preview. The
+   * thumbnail click already did this silently, which is why visitors could
+   * not find a working button for it. */
+  const useTemplate = (id: ResumeTemplateId) => {
+    setTemplate(id);
+    setConfirmSampleFor(null);
+    const name = TEMPLATES.find((t) => t.id === id)?.name ?? "Selected";
+    setSavedNote(`${name} template selected — fill in your details below and watch the live preview update.`);
+    // On narrow screens the preview sits below the form, so bring it into
+    // view; on desktop it is already visible in the sticky right column.
+    if (window.innerWidth < 1024) {
+      document.getElementById("resume-live-preview")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   };
 
   const clearAll = () => {
@@ -921,10 +952,7 @@ export function ResumeBuilder() {
                     >
                       <button
                         type="button"
-                        onClick={() => {
-                          setTemplate(t.id);
-                          setConfirmSampleFor(null);
-                        }}
+                        onClick={() => useTemplate(t.id)}
                         aria-pressed={template === t.id}
                         className="block w-full p-3 text-left"
                       >
@@ -932,16 +960,32 @@ export function ResumeBuilder() {
                         <span className="mt-2 block text-sm font-bold text-slate-900">{t.name}</span>
                         <span className="mt-1 block text-xs leading-relaxed text-slate-600">{t.description}</span>
                       </button>
-                      <div className="px-3 pb-3">
+                      <div className="flex flex-wrap gap-2 px-3 pb-3">
+                        {template === t.id ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white">
+                            <Check className="h-3.5 w-3.5" /> Selected
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => useTemplate(t.id)}
+                            className="inline-flex items-center gap-1.5 rounded-full bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800"
+                          >
+                            Use this Template
+                          </button>
+                        )}
                         {confirmSampleFor === t.id ? (
-                          <div className="rounded-lg border border-amber-300 bg-amber-50 p-2.5">
+                          <div className="w-full rounded-lg border border-amber-300 bg-amber-50 p-2.5">
                             <p className="text-xs font-semibold leading-snug text-amber-900">
                               Replace what you typed with the sample resume?
                             </p>
                             <div className="mt-2 flex flex-wrap gap-2">
                               <button
                                 type="button"
-                                onClick={() => applySample(t.id)}
+                                onClick={() => {
+                                  applySample(t.id);
+                                  scrollToPreview();
+                                }}
                                 className="rounded-full bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800"
                               >
                                 Yes, use sample
@@ -1664,7 +1708,7 @@ export function ResumeBuilder() {
           </div>
 
           {/* ------------------------------------------------ Preview */}
-          <div className="lg:sticky lg:top-20 lg:self-start">
+          <div id="resume-live-preview" className="lg:sticky lg:top-20 lg:self-start">
             <div className="no-print mb-3 flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
               <p className="text-sm font-semibold text-slate-700">
                 Live preview — {TEMPLATES.find((t) => t.id === template)?.name} template ·{" "}
