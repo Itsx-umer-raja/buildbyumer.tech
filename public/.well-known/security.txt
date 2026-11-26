@@ -1,0 +1,6 @@
+# PDF World — security.txt (RFC 9116)
+# Report security issues here; do not use this channel for general support.
+Contact: https://github.com/Itsx-umer-raja/buildbyumer.tech/issues
+Expires: 2027-05-26T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://www.builtbyumer.tech/.well-known/security.txt

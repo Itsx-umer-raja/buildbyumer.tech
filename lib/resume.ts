@@ -76,7 +76,10 @@ export type ResumeTemplateId =
   | "umer-classic"
   | "executive-dark"
   | "creative-portfolio"
-  | "academic";
+  | "academic"
+  | "vibrant"
+  | "sunset"
+  | "ocean";
 export type DateFormat = "mon-yyyy" | "mm-yyyy" | "yyyy" | "mon-dd-yyyy";
 
 export const TEMPLATES: { id: ResumeTemplateId; name: string; description: string }[] = [
@@ -150,6 +153,21 @@ export const TEMPLATES: { id: ResumeTemplateId; name: string; description: strin
     name: "Academic Research",
     description: "Centred serif header, Education and Academic Experience promoted above work experience, plain one-per-line skills and languages. Good for researchers, lecturers, students and grant applications.",
   },
+  {
+    id: "vibrant",
+    name: "Vibrant Pop",
+    description: "A bold violet-to-pink-to-amber gradient header band with a round photo, bright headings and skill bars. Good for design, marketing, media and creative roles where colour makes the first impression.",
+  },
+  {
+    id: "sunset",
+    name: "Sunset Glow",
+    description: "Warm cream page, coral title badge and a sunset gradient strip; warm orange headings, plain one-per-line skills and languages. Good for hospitality, teaching, marketing and creative roles.",
+  },
+  {
+    id: "ocean",
+    name: "Ocean Breeze",
+    description: "Blue-teal gradient sidebar with a round photo, contact and skill/language bars; a bright main column with deep-teal headings. Good for tech, healthcare, education and corporate roles that still want colour.",
+  },
 ];
 
 /** Templates whose .docx export / preview deliberately omit the photo.
@@ -158,11 +176,11 @@ export const TEMPLATES: { id: ResumeTemplateId; name: string; description: strin
  * the preview until one is uploaded). */
 export const PHOTOLESS_TEMPLATES: ResumeTemplateId[] = ["ats"];
 /** Templates that render the photo in a sidebar (docx + preview). */
-export const SIDEBAR_TEMPLATES: ResumeTemplateId[] = ["fresh-grad", "navy-sidebar", "creative-portfolio"];
+export const SIDEBAR_TEMPLATES: ResumeTemplateId[] = ["fresh-grad", "navy-sidebar", "creative-portfolio", "ocean"];
 /** Templates that lay the .docx out as a two-column table. */
-export const TABLE_TEMPLATES: ResumeTemplateId[] = ["two-column", "fresh-grad", "navy-sidebar", "umer-classic", "creative-portfolio"];
+export const TABLE_TEMPLATES: ResumeTemplateId[] = ["two-column", "fresh-grad", "navy-sidebar", "umer-classic", "creative-portfolio", "ocean"];
 /** Templates that show proficiency bars next to skills and languages. */
-export const BAR_TEMPLATES: ResumeTemplateId[] = ["umer-classic", "executive-dark", "creative-portfolio"];
+export const BAR_TEMPLATES: ResumeTemplateId[] = ["umer-classic", "executive-dark", "creative-portfolio", "vibrant", "ocean"];
 /** Templates that ignore the colour theme and always render black-and-white
  * (by design: ATS for parser reliability, Umer Classic for its serif CV look). */
 export const MONOCHROME_TEMPLATES: ResumeTemplateId[] = ["ats", "umer-classic"];
@@ -456,6 +474,63 @@ export const SAMPLE_RESUME: ResumeData = {
 };
 
 // ---------------------------------------------------------------------------
+// Placeholder resume: shown in the live preview ONLY while the form is
+// completely empty, so the user sees the full template layout at once
+// instead of a bare "Your Name". It is never stored, never saved, and never
+// exported — the preview swaps to the real form data the moment the user
+// types anything (see isResumeEmpty), and the export buttons stay disabled
+// while the form is empty. Every field is obviously placeholder text.
+// ---------------------------------------------------------------------------
+export const PLACEHOLDER_RESUME: ResumeData = {
+  fullName: "Your Name",
+  title: "Your Job Title",
+  email: "you@example.com",
+  phone: "+1 (555) 000-0000",
+  location: "Your City, Country",
+  website: "",
+  linkedin: "linkedin.com/in/yourname",
+  summary:
+    "A short summary about you — two or three sentences about what you do best and the kind of role you want.",
+  experience: [
+    {
+      id: "ph-exp-1",
+      role: "Your Most Recent Job Title",
+      company: "Company Name",
+      start: "2023-01",
+      end: "",
+      current: true,
+      bullets:
+        "What you did in this role — one achievement per line\nAnother achievement or responsibility",
+    },
+  ],
+  education: [
+    {
+      id: "ph-edu-1",
+      degree: "Your Degree",
+      school: "Your School or University",
+      start: "2019",
+      end: "2023",
+    },
+  ],
+  skills: "Skill One, Skill Two, Skill Three, Skill Four",
+  languages: "Language One (fluent), Language Two (basic)",
+  skillLevels: { "Skill One": 85, "Skill Two": 75, "Skill Three": 80, "Skill Four": 70 },
+  languageLevels: { "Language One (fluent)": 90, "Language Two (basic)": 50 },
+  academicExperience: [
+    {
+      id: "ph-acad-1",
+      title: "Your Project or Competition",
+      org: "Your School or Organisation",
+      start: "2023",
+      end: "2023",
+      bullets: "What you did and what it shows about you",
+    },
+  ],
+  referencesText: "",
+  referencesOnRequest: true,
+};
+
+// ---------------------------------------------------------------------------
 // Template-based summary writer (no AI model). The user picks a profession
 // and a tone; a proven template is filled with their own details.
 // ---------------------------------------------------------------------------
@@ -583,9 +658,19 @@ export async function buildResumeDocx(
   const isMono = MONOCHROME_TEMPLATES.includes(template);
   const font = opts.fontId ? getResumeFont(opts.fontId) : getResumeFont(TEMPLATE_DEFAULT_FONTS[template]);
   const theme = getResumeTheme(opts.themeId);
-  const accent = (isMono ? "000000" : theme.accent.replace("#", ""));
-  const accentDark = (isMono ? "000000" : theme.accentDark.replace("#", ""));
-  const soft = theme.soft.replace("#", "");
+  // The three colourful templates carry their own fixed palette in Word so
+  // the export looks like the preview whatever theme is picked — the same
+  // reason Pastel and Umer Classic already special-case their colours.
+  // Their layout differs too, so each produces a distinct document.
+  const FIXED_DOCX_COLORS: Record<string, { accent: string; dark: string; soft: string }> = {
+    vibrant: { accent: "DB2777", dark: "9D174D", soft: "FDF2F8" },
+    sunset: { accent: "EA580C", dark: "9A3412", soft: "FFF7ED" },
+    ocean: { accent: "0E7490", dark: "155E75", soft: "ECFEFF" },
+  };
+  const fixed = FIXED_DOCX_COLORS[template];
+  const accent = fixed ? fixed.accent : (isMono ? "000000" : theme.accent.replace("#", ""));
+  const accentDark = fixed ? fixed.dark : (isMono ? "000000" : theme.accentDark.replace("#", ""));
+  const soft = fixed ? fixed.soft : theme.soft.replace("#", "");
   // B2: ATS always uses Arial, in the export as in the preview. Display fonts
   // (Bebas Neue, Dancing Script) go on headings only; the body uses the
   // template's default font so it stays readable.
@@ -666,13 +751,13 @@ export async function buildResumeDocx(
   // --- shared section builders (each returns its paragraphs) -------------
   const summaryParas = (): P[] => {
     if (!data.summary.trim()) return [];
-    return [heading("Summary", { borderBottom: template === "bold" ? accent : undefined, borderTop: template === "bold" ? accent : undefined }), new Paragraph({ children: [run(data.summary, { size: 22 })] })];
+    return [heading("Summary", { borderBottom: template === "bold" || template === "sunset" ? accent : undefined, borderTop: template === "bold" ? accent : undefined }), new Paragraph({ children: [run(data.summary, { size: 22 })] })];
   };
 
   const experienceParas = (side = false): P[] => {
     const items = data.experience.filter(hasExperienceContent);
     if (!items.length) return [];
-    const out: P[] = [side ? sideHeading("Experience") : heading("Experience", { borderBottom: template === "bold" ? accent : undefined, borderTop: template === "bold" ? accent : undefined })];
+    const out: P[] = [side ? sideHeading("Experience") : heading("Experience", { borderBottom: template === "bold" || template === "sunset" ? accent : undefined, borderTop: template === "bold" ? accent : undefined })];
     for (const e of items) {
       const roleLine = [e.role.trim(), e.company.trim()].filter(Boolean).join(" — ");
       const range = formatRange(e.start, e.end, e.current, fmt);
@@ -699,7 +784,7 @@ export async function buildResumeDocx(
   const educationParas = (side = false, badge = false): P[] => {
     const items = data.education.filter(hasEducationContent);
     if (!items.length) return [];
-    const out: P[] = [side ? sideHeading("Education") : heading("Education", { borderBottom: template === "bold" ? accent : undefined, borderTop: template === "bold" ? accent : undefined })];
+    const out: P[] = [side ? sideHeading("Education") : heading("Education", { borderBottom: template === "bold" || template === "sunset" ? accent : undefined, borderTop: template === "bold" ? accent : undefined })];
     for (const e of items) {
       const line = [e.degree.trim(), e.school.trim()].filter(Boolean).join(" — ");
       const range = formatRange(e.start, e.end, false, fmt);
@@ -738,7 +823,7 @@ export async function buildResumeDocx(
   const academicExperienceParas = (side = false): P[] => {
     const items = (data.academicExperience ?? []).filter(hasAcademicExperienceContent);
     if (!items.length) return [];
-    const out: P[] = [side ? sideHeading("Academic Experience") : heading("Academic Experience", { borderBottom: template === "bold" ? accent : undefined, borderTop: template === "bold" ? accent : undefined })];
+    const out: P[] = [side ? sideHeading("Academic Experience") : heading("Academic Experience", { borderBottom: template === "bold" || template === "sunset" ? accent : undefined, borderTop: template === "bold" ? accent : undefined })];
     for (const e of items) {
       const titleLine = [e.title.trim(), e.org.trim()].filter(Boolean).join(" — ");
       const range = formatRange(e.start, e.end, false, fmt);
@@ -778,7 +863,7 @@ export async function buildResumeDocx(
   const skillsParas = (side = false): P[] => {
     const entries = skillEntries(data);
     if (!entries.length) return [];
-    const out: P[] = [side ? sideHeading("Skills") : heading("Skills", { borderBottom: template === "bold" ? accent : undefined, borderTop: template === "bold" ? accent : undefined })];
+    const out: P[] = [side ? sideHeading("Skills") : heading("Skills", { borderBottom: template === "bold" || template === "sunset" ? accent : undefined, borderTop: template === "bold" ? accent : undefined })];
     for (const { name, level } of entries) {
       const children: InstanceType<typeof TextRun>[] = [run(name, { size: 22, color: side ? "FFFFFF" : bodyColor })];
       if (showBars) {
@@ -792,7 +877,7 @@ export async function buildResumeDocx(
   const languagesParas = (side = false): P[] => {
     const entries = languageEntries(data);
     if (!entries.length) return [];
-    const out: P[] = [side ? sideHeading("Languages") : heading("Languages", { borderBottom: template === "bold" ? accent : undefined, borderTop: template === "bold" ? accent : undefined })];
+    const out: P[] = [side ? sideHeading("Languages") : heading("Languages", { borderBottom: template === "bold" || template === "sunset" ? accent : undefined, borderTop: template === "bold" ? accent : undefined })];
     for (const { name, level } of entries) {
       const children: InstanceType<typeof TextRun>[] = [run(name, { size: 22, color: side ? "FFFFFF" : bodyColor })];
       if (showBars) {
@@ -813,24 +898,26 @@ export async function buildResumeDocx(
     }
     if (data.fullName.trim()) {
       const nameSize =
-        template === "bold" ? 72 : template === "classic" ? 56 : template === "umer-classic" ? 56 : template === "academic" ? 52 : template === "pastel" ? 52 : template === "minimal" ? 48 : template === "ats" ? 48 : 44;
+        template === "bold" ? 72 : template === "classic" ? 56 : template === "umer-classic" ? 56 : template === "sunset" ? 56 : template === "academic" ? 52 : template === "pastel" ? 52 : template === "minimal" ? 48 : template === "ats" ? 48 : 44;
       out.push(
         new Paragraph({
           alignment: headerAlign,
-          shading: template === "pastel" ? { type: ShadingType.CLEAR, fill: soft } : undefined,
+          shading: template === "pastel" || template === "sunset" ? { type: ShadingType.CLEAR, fill: soft } : undefined,
           border:
             template === "bold"
               ? { bottom: { style: BorderStyle.SINGLE, size: 24, space: 6, color: accent } }
               : template === "modern"
                 ? { left: { style: BorderStyle.SINGLE, size: 24, space: 8, color: accent } }
-                : undefined,
+                : template === "sunset"
+                  ? { bottom: { style: BorderStyle.SINGLE, size: 18, space: 6, color: accent } }
+                  : undefined,
           children: [
             new TextRun({
               text: data.fullName,
               bold: true,
               size: nameSize,
               font: headFont,
-              color: template === "bold" ? accent : template === "pastel" ? "3F3A36" : bodyColor,
+              color: template === "bold" || template === "sunset" ? accent : template === "pastel" ? "3F3A36" : bodyColor,
               allCaps: template === "bold",
             }),
           ],
@@ -841,7 +928,7 @@ export async function buildResumeDocx(
       out.push(
         new Paragraph({
           alignment: headerAlign,
-          children: [run(data.title, { size: 26, color: template === "bold" ? accent : muted, italics: template === "classic" })],
+          children: [run(data.title, { size: 26, color: template === "bold" ? accent : template === "sunset" ? accentDark : muted, italics: template === "classic" })],
         }),
       );
     }
@@ -887,6 +974,23 @@ export async function buildResumeDocx(
       }
     }
     out.push(...skillsParas(), ...languagesParas());
+    return out;
+  };
+
+  // Ocean sidebar: white text on the deep teal-blue cell, with skill and
+  // language bars. Unlike the other sidebar templates, Education stays in
+  // the main column (the sidebar holds Contact, Skills, Languages only).
+  const oceanSidebarParas = (): P[] => {
+    const out: P[] = [];
+    const pp = photoPara(110, AlignmentType.LEFT);
+    if (pp) out.push(pp);
+    if (contact) {
+      out.push(sideHeading("Contact"));
+      for (const part of [data.email, data.phone, data.location, data.website, data.linkedin].filter((x) => x.trim())) {
+        out.push(new Paragraph({ spacing: { after: 40 }, children: [run(part, { size: 20, color: "FFFFFF" })] }));
+      }
+    }
+    out.push(...skillsParas(true), ...languagesParas(true));
     return out;
   };
 
@@ -1140,7 +1244,9 @@ export async function buildResumeDocx(
         ? [...skillsParas(), ...educationParas(), ...languagesParas()]
         : template === "creative-portfolio"
           ? creativeSidebarParas()
-          : sidebarParas();
+          : template === "ocean"
+            ? oceanSidebarParas()
+            : sidebarParas();
     const right: P[] =
       template === "two-column"
         ? [...headerParas(), ...summaryParas(), ...experienceParas(), ...academicExperienceParas()]
@@ -1148,7 +1254,9 @@ export async function buildResumeDocx(
           ? [...mainParas(), ...summaryParas(), ...educationParas(), ...experienceParas(), ...academicExperienceParas()]
           : template === "creative-portfolio"
             ? [...mainParas(), ...summaryParas(), ...experienceParas(), ...educationParas(), ...academicExperienceParas()]
-            : [...mainParas(), ...summaryParas(), ...experienceParas(), ...educationParas(), ...academicExperienceParas()];
+            : template === "ocean"
+              ? [...mainParas(), ...summaryParas(), ...experienceParas(), ...educationParas(), ...academicExperienceParas()]
+              : [...mainParas(), ...summaryParas(), ...experienceParas(), ...educationParas(), ...academicExperienceParas()];
     const table = new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       borders: noBorders,
@@ -1177,7 +1285,10 @@ export async function buildResumeDocx(
     });
     // Two-column keeps the full-width header above the table.
     children = template === "two-column" ? [...headerParas(), table, ...referencesParas()] : [table, ...referencesParas()];
-  } else if (template === "executive-dark") {
+  } else if (template === "executive-dark" || template === "vibrant") {
+    // Vibrant reuses the dark header band: its fixed palette (deep pink
+    // band, pink headings, bars) makes the document distinct from
+    // Executive Dark, which uses the picked theme's colours.
     children = [
       executiveHeaderTable(),
       ...summaryParas(),

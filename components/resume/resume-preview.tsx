@@ -1102,6 +1102,176 @@ function AcademicTemplate({
   );
 }
 
+// ---------------------------------------------------------------- Vibrant Pop (new)
+// A bold violet-to-pink-to-amber gradient header band with a round photo and
+// white name, title and contact; bright pink headings and skill/language
+// bars below. The gradient is a fixed palette (like Pastel's fixed cream),
+// so the template stays colourful whatever theme is picked; the font picker
+// still applies to the name, headings and body.
+function VibrantTemplate({
+  data,
+  fmt,
+  photo,
+  photoOn,
+  headingStyle,
+}: {
+  data: ResumeData;
+  fmt: DateFormat;
+  photo: string | null;
+  photoOn: boolean;
+  headingStyle?: CSSProperties;
+}) {
+  const h =
+    "mb-1.5 border-b-2 border-[#F472B6] pb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#9D174D]";
+  return (
+    <div className="text-slate-800">
+      <header
+        className="-mx-8 -mt-10 px-8 pb-6 pt-10 text-white sm:-mx-10 sm:px-10"
+        style={{ background: "linear-gradient(120deg, #7C3AED 0%, #DB2777 55%, #F59E0B 100%)" }}
+      >
+        <div className="flex items-start gap-5">
+          <PhotoSlot photo={photo} photoOn={photoOn} className="h-20 w-20 ring-2 ring-white/80" />
+          <div>
+            <h1 className="text-[30px] font-extrabold leading-tight" style={headingStyle}>
+              {data.fullName || "Your Name"}
+            </h1>
+            {data.title && <p className="mt-0.5 text-[14px] font-semibold text-white/90">{data.title}</p>}
+            <div className="mt-1 text-[11.5px] text-white/85">
+              <ContactLine data={data} />
+            </div>
+          </div>
+        </div>
+      </header>
+      <div className="mt-5 space-y-4">
+        <SummarySection data={data} headingCls={h} headingStyle={headingStyle} />
+        <ExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <AcademicExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <EducationSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <SkillsSection data={data} headingCls={h} headingStyle={headingStyle} showBars />
+        <LanguagesSection data={data} headingCls={h} headingStyle={headingStyle} showBars />
+        <ReferencesSection data={data} headingCls={h} headingStyle={headingStyle} />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- Sunset Glow (new)
+// A warm cream page, a coral title badge, and a sunset gradient strip under
+// the centred header; warm orange headings and plain one-per-line skills and
+// languages (no bars — the colour carries the design). Fixed warm palette,
+// font picker still applies.
+function SunsetTemplate({
+  data,
+  fmt,
+  photo,
+  photoOn,
+  headingStyle,
+}: {
+  data: ResumeData;
+  fmt: DateFormat;
+  photo: string | null;
+  photoOn: boolean;
+  headingStyle?: CSSProperties;
+}) {
+  const h =
+    "mb-1.5 border-b border-[#FED7AA] pb-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#C2410C]";
+  return (
+    <div className="-mx-8 -my-10 bg-[#FFF7ED] px-8 py-10 text-[#292524] sm:-mx-10 sm:px-10">
+      <header className="text-center">
+        <div className="mb-3 flex justify-center"><PhotoSlot photo={photo} photoOn={photoOn} className="h-20 w-20 ring-2 ring-[#FDBA74]" /></div>
+        <h1 className="text-[28px] font-bold leading-tight text-[#9A3412]" style={headingStyle}>
+          {data.fullName || "Your Name"}
+        </h1>
+        {data.title && (
+          <p className="mt-2 inline-block bg-[#EA580C] px-3 py-0.5 text-[12px] font-bold uppercase tracking-[0.14em] text-white">
+            {data.title}
+          </p>
+        )}
+        <div className="mt-2 text-[11.5px] text-[#7C2D12]/80">
+          <ContactLine data={data} />
+        </div>
+        <div
+          className="mx-auto mt-3 h-1.5 w-40 rounded-full"
+          style={{ background: "linear-gradient(90deg, #FBBF24 0%, #F97316 50%, #E11D48 100%)" }}
+          aria-hidden
+        />
+      </header>
+      <div className="mt-5 space-y-4">
+        <SummarySection data={data} headingCls={h} headingStyle={headingStyle} />
+        <ExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <AcademicExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <EducationSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <SkillsSection data={data} headingCls={h} headingStyle={headingStyle} />
+        <LanguagesSection data={data} headingCls={h} headingStyle={headingStyle} />
+        <ReferencesSection data={data} headingCls={h} headingStyle={headingStyle} />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- Ocean Breeze (new)
+// A blue-teal gradient sidebar with a round photo, contact and skill/language
+// bars in white; a bright main column with deep-teal headings. Distinct from
+// Corporate Navy (solid dark sidebar) and Creative Portfolio (light tinted
+// sidebar, dark text): here the sidebar is a vivid gradient with white text.
+// Fixed gradient palette, font picker still applies.
+function OceanTemplate({
+  data,
+  fmt,
+  photo,
+  photoOn,
+  headingStyle,
+}: {
+  data: ResumeData;
+  fmt: DateFormat;
+  photo: string | null;
+  photoOn: boolean;
+  headingStyle?: CSSProperties;
+}) {
+  const h =
+    "mb-1.5 border-b-2 border-[#0891B2] pb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#155E75]";
+  const sideH =
+    "mb-1.5 border-b border-white/40 pb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white";
+  return (
+    <div className="flex text-slate-800">
+      <aside
+        className="-my-10 -ml-8 flex w-[35%] shrink-0 flex-col items-center px-5 py-10 text-white sm:-ml-10"
+        style={{ background: "linear-gradient(180deg, #0E7490 0%, #0369A1 55%, #1D4ED8 100%)" }}
+      >
+        <PhotoSlot photo={photo} photoOn={photoOn} className="h-24 w-24 ring-2 ring-white/80" />
+        <div className="mt-5 w-full space-y-4 text-[12px] leading-relaxed">
+          <div>
+            <h2 className={sideH}>Contact</h2>
+            <div className="space-y-0.5 break-words">
+              {[data.email, data.phone, data.location, data.website, data.linkedin]
+                .filter((x) => x.trim())
+                .map((x, i) => (
+                  <p key={i}>{x}</p>
+                ))}
+            </div>
+          </div>
+          <SkillsSection data={data} headingCls={sideH} headingStyle={headingStyle} showBars dark />
+          <LanguagesSection data={data} headingCls={sideH} headingStyle={headingStyle} showBars dark />
+        </div>
+      </aside>
+      <div className="min-w-0 flex-1 space-y-4 pl-6">
+        <header>
+          <h1 className="text-[26px] font-bold leading-tight text-[#155E75]" style={headingStyle}>
+            {data.fullName || "Your Name"}
+          </h1>
+          {data.title && <p className="text-[13px] font-semibold text-[#0E7490]">{data.title}</p>}
+          <hr className="mt-2 border-[#0E7490]" />
+        </header>
+        <SummarySection data={data} headingCls={h} headingStyle={headingStyle} />
+        <ExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <EducationSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <AcademicExperienceSection data={data} fmt={fmt} headingCls={h} headingStyle={headingStyle} />
+        <ReferencesSection data={data} headingCls={h} headingStyle={headingStyle} />
+      </div>
+    </div>
+  );
+}
+
 export function ResumePreview({
   data,
   template,
@@ -1110,6 +1280,7 @@ export function ResumePreview({
   photoOn,
   fontId,
   themeId,
+  printable = true,
 }: {
   data: ResumeData;
   template: ResumeTemplateId;
@@ -1120,6 +1291,11 @@ export function ResumePreview({
   /** null = the template's default font. */
   fontId: string | null;
   themeId: string;
+  /** False for miniature thumbnails and the empty-state placeholder preview:
+   * the sheet then carries no id="resume-print", so the print stylesheet
+   * (which only makes #resume-print visible) can never print a thumbnail
+   * or placeholder text, and duplicate ids never appear in the page. */
+  printable?: boolean;
 }) {
   const font = fontId ? getResumeFont(fontId) : getResumeFont(TEMPLATE_DEFAULT_FONTS[template]);
   const theme = getResumeTheme(themeId);
@@ -1134,7 +1310,7 @@ export function ResumePreview({
 
   return (
     <div
-      id="resume-print"
+      id={printable ? "resume-print" : undefined}
       className="resume-sheet mx-auto w-full max-w-[820px] break-words bg-white px-8 py-10 text-[13px] leading-relaxed shadow-sm sm:px-10"
       style={
         {
@@ -1160,6 +1336,9 @@ export function ResumePreview({
       {template === "executive-dark" && <ExecutiveDarkTemplate data={data} fmt={dateFormat} photo={photo} photoOn={photoOn} headingStyle={headingStyle} />}
       {template === "creative-portfolio" && <CreativePortfolioTemplate data={data} fmt={dateFormat} photo={photo} photoOn={photoOn} headingStyle={headingStyle} />}
       {template === "academic" && <AcademicTemplate data={data} fmt={dateFormat} photo={photo} photoOn={photoOn} headingStyle={headingStyle} />}
+      {template === "vibrant" && <VibrantTemplate data={data} fmt={dateFormat} photo={photo} photoOn={photoOn} headingStyle={headingStyle} />}
+      {template === "sunset" && <SunsetTemplate data={data} fmt={dateFormat} photo={photo} photoOn={photoOn} headingStyle={headingStyle} />}
+      {template === "ocean" && <OceanTemplate data={data} fmt={dateFormat} photo={photo} photoOn={photoOn} headingStyle={headingStyle} />}
     </div>
   );
 }

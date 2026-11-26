@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Printer,
   FileDown,
@@ -19,11 +19,14 @@ import {
   Languages,
   BookOpen,
   Quote,
+  PenLine,
 } from "lucide-react";
 import { inputCls, selectCls, OptionLabel } from "@/components/tool-ui";
 import { downloadBlob } from "@/lib/pdf-utils";
 import {
   SAMPLE_RESUME,
+  PLACEHOLDER_RESUME,
+  isResumeEmpty,
   TEMPLATES,
   DATE_FORMATS,
   SUMMARY_PROFESSIONS,
@@ -32,6 +35,7 @@ import {
   buildResumeDocx,
   sanitizeDocxFilename,
   parseUploadedResume,
+  parseResumeText,
   skillEntries,
   languageEntries,
   type ResumeData,
@@ -73,6 +77,128 @@ function uid(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function titleCaseWords(s: string) {
+  return s.replace(/\b\w+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+}
+
+/** A phone-like run of digits (9+ digits, so year ranges like 2020–2025 are never mistaken for a phone number). */
+function extractPhone(text: string): string | null {
+  const matches = text.match(/\+?\d[\d\s().-]{7,}\d/g) ?? [];
+  for (const m of matches) {
+    if ((m.match(/\d/g) ?? []).length >= 9) return m.replace(/\s+/g, " ").trim();
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// "Write it in plain words": reshape free prose into the line-structured
+// text parseResumeText() was built for. parseResumeText does ALL of the real
+// parsing — sections, dates, jobs, education, contact details — and this
+// helper only re-lines the input so that parser can see it:
+//   • sentences become one-per-line (a single paragraph has <3 lines, and
+//     the parser ignores such short input entirely);
+//   • email / phone / LinkedIn are hoisted to standalone lines at the top,
+//     where the parser looks for contact details, and stripped out of the
+//     prose so they do not pollute the summary;
+//   • "I am Umer, a law student at National Law College." becomes a name
+//     line, a title line and an Education entry;
+//   • "I know legal research and moot courts." becomes a skills list.
+// Two plain-words patterns are returned separately instead of being fed to
+// the parser, because the parser cannot see them at all: a name inside a
+// sentence ("I am …") is not a name-shaped line, and a skill line containing
+// the word "research" trips the parser's section-header test and is
+// misfiled as academic experience. They are applied afterwards, only when
+// the parser left that field blank, and the result panel says so.
+// ---------------------------------------------------------------------------
+function normalisePlainWords(raw: string): {
+  text: string;
+  nameFromIntro: string;
+  skillsFromIntro: string[];
+} {
+  let lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length < 3) {
+    lines = raw
+      .replace(/([.!?])\s+(?=[A-Z0-9"“])/g, "$1\n")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+  }
+  const emailMatch = raw.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+  const phone = extractPhone(raw);
+  const linkedinMatch = raw.match(/linkedin\.com\/[^\s,]+/i);
+  const stripContact = (line: string) =>
+    line
+      .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "")
+      .replace(/linkedin\.com\/[^\s,]+/gi, "")
+      .replace(/^(email|phone|tel|contact)\s*:?\s*/i, "")
+      .replace(/\s{2,}/g, " ")
+      .replace(/^\s*[|,;]\s*/, "")
+      .replace(/\s*[|,;]\s*$/, "")
+      .trim();
+
+  let nameFromIntro = "";
+  let titleLine = "";
+  const first = lines[0] ?? "";
+  const intro = first.match(/^(?:my name is|i am|i'm|this is)\s+([A-Za-z][A-Za-z'’-]+(?:\s+[A-Za-z][A-Za-z'’-]+){0,3})/i);
+  if (intro) {
+    nameFromIntro = titleCaseWords(intro[1].trim());
+    const rest = first.slice(intro[0].length).replace(/^[\s,]+/, "").trim();
+    if (rest) lines[0] = rest;
+    else lines.shift();
+  }
+
+  const summaryLines: string[] = [];
+  const eduLines: string[] = [];
+  const expLines: string[] = [];
+  const skillsFromIntro: string[] = [];
+  for (const rawLine of lines) {
+    // A phone number is stripped only when it is the whole contact token;
+    // a date range inside a sentence keeps its digits (see extractPhone).
+    const withoutEmail = rawLine
+      .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "")
+      .replace(/linkedin\.com\/[^\s,]+/gi, "");
+    const phoneInLine = extractPhone(withoutEmail);
+    const line = stripContact(phoneInLine ? withoutEmail.replace(phoneInLine, "") : withoutEmail);
+    if (!line) continue;
+    const student = line.match(/^(?:a|an|the)?\s*([A-Za-z][A-Za-z &/-]*?)\s+student\s+at\s+(.+?)\.?$/i);
+    if (student) {
+      const degree = titleCaseWords(`${student[1].trim()} student`);
+      eduLines.push(degree, student[2].trim());
+      if (nameFromIntro && !titleLine) titleLine = degree;
+      continue;
+    }
+    const work = line.match(/^(?:i work as|i'm|i am)\s+(?:a|an|the)?\s*(.+?)\s+at\s+(.+?)\.?$/i);
+    if (work) {
+      const role = titleCaseWords(work[1].trim());
+      expLines.push(`${role} at ${work[2].trim()}`);
+      if (nameFromIntro && !titleLine) titleLine = role;
+      continue;
+    }
+    const skills = line.match(/^(?:i know|my skills are|my skills include|i can do|i'm good at|i am good at|skilled in)\s+(.+?)\.?$/i);
+    if (skills) {
+      for (const item of skills[1].split(/,|\s+and\s+/)) {
+        const clean = item.trim();
+        if (clean) skillsFromIntro.push(clean);
+      }
+      continue;
+    }
+    summaryLines.push(line);
+  }
+
+  const out: string[] = [];
+  if (nameFromIntro) out.push(nameFromIntro);
+  // A title line is only safe directly under a name: on its own the parser
+  // would read "Law Student" as the person's name.
+  if (titleLine) out.push(titleLine);
+  if (emailMatch) out.push(emailMatch[0]);
+  if (phone) out.push(phone);
+  if (linkedinMatch) out.push(linkedinMatch[0].replace(/\/$/, ""));
+  if (summaryLines.length) out.push("Summary", ...summaryLines);
+  if (eduLines.length) out.push("Education", ...eduLines);
+  if (expLines.length) out.push("Experience", ...expLines);
+  return { text: out.join("\n"), nameFromIntro, skillsFromIntro };
+}
+
 function Section({
   icon,
   title,
@@ -92,6 +218,135 @@ function Section({
   );
 }
 
+type PreviewZoom = "fit" | 50 | 75 | 100;
+
+// ---------------------------------------------------------------------------
+// Miniature live template thumbnails for the picker. Each thumbnail renders
+// the real ResumePreview for one template with the sample resume, that
+// template's default font and the teal theme, scaled down to the button
+// width with a screen-only transform (same technique as the preview zoom).
+// The sheet is 820px wide; unlike the first version — which showed it in a
+// fixed 240px-tall window, so only the top of the design was visible — the
+// whole page is shown: the miniature sheet's real (unscaled) height is
+// measured with a ResizeObserver (transforms do not change offsetHeight, so
+// the measurement stays stable while scaled) and the outer box is sized to
+// sheetHeight × scale, so header, sections, references and footer are all
+// visible at once, exactly like a template gallery. The box is therefore
+// taller than 240px (roughly A4 proportions). Thumbnails are memoized (their
+// props never change, so typing in the form never re-renders them) and
+// mounted lazily with an IntersectionObserver, so the page does not mount
+// 14+ full sheets on first load — they appear as the user scrolls the
+// picker, with no click needed. printable={false}: no id="resume-print", so
+// the print stylesheet can never print a thumbnail and no duplicate ids
+// appear in the page.
+// ---------------------------------------------------------------------------
+const THUMB_SHEET_WIDTH = 820;
+// A4 proportions, used only until the sheet's real height is measured.
+const THUMB_FALLBACK_ASPECT = 297 / 210;
+
+function TemplateThumbnail({ templateId }: { templateId: ResumeTemplateId }) {
+  const outerRef = useRef<HTMLDivElement | null>(null);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(0);
+  const [sheetHeight, setSheetHeight] = useState(0);
+  useEffect(() => {
+    const el = outerRef.current;
+    if (!el) return;
+    const measure = () => setWidth(el.clientWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  // Measure the unscaled sheet height: the wrapper is transformed, and a
+  // transform never changes offsetHeight, so this is the true page height.
+  const widthReady = width > 0;
+  useEffect(() => {
+    if (!widthReady) return;
+    const el = sheetRef.current;
+    if (!el) return;
+    const measure = () => {
+      const h = el.offsetHeight;
+      if (h > 0) setSheetHeight((prev) => (Math.abs(prev - h) > 1 ? h : prev));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [widthReady]);
+  const scale = widthReady ? width / THUMB_SHEET_WIDTH : 0;
+  // Full page, no cropping: the box is exactly as tall as the scaled sheet
+  // (plus 2px for sub-pixel rounding), never a fixed window.
+  const height = widthReady
+    ? sheetHeight > 0
+      ? sheetHeight * scale + 2
+      : width * THUMB_FALLBACK_ASPECT
+    : undefined;
+  return (
+    <div
+      ref={outerRef}
+      className="relative rounded-lg bg-slate-100"
+      style={height ? { height } : undefined}
+      aria-hidden="true"
+    >
+      {widthReady && (
+        <div
+          ref={sheetRef}
+          style={{ width: THUMB_SHEET_WIDTH, transform: `scale(${scale})`, transformOrigin: "top left" }}
+        >
+          <ResumePreview
+            data={SAMPLE_RESUME}
+            template={templateId}
+            dateFormat="mon-yyyy"
+            photo={null}
+            photoOn
+            fontId={null}
+            themeId="teal"
+            printable={false}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+const MemoThumbnail = memo(TemplateThumbnail);
+
+function LazyThumbnail({ templateId }: { templateId: ResumeTemplateId }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setInView(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setInView(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "300px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return (
+    <div ref={ref}>
+      {inView ? (
+        <MemoThumbnail templateId={templateId} />
+      ) : (
+        <div className="flex aspect-[820/1180] w-full items-center justify-center rounded-lg bg-slate-100 text-xs font-medium text-slate-400">
+          Loading preview…
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ResumeBuilder() {
   const [data, setData] = useState<ResumeData>(EMPTY);
   const [template, setTemplate] = useState<ResumeTemplateId>("modern");
@@ -107,11 +362,29 @@ export function ResumeBuilder() {
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadResult, setUploadResult] = useState<ResumeParseResult | null>(null);
+  // "Write it in plain words" (Phase 3) and per-template sample confirm (Phase 4).
+  const [plainText, setPlainText] = useState("");
+  const [plainTextError, setPlainTextError] = useState<string | null>(null);
+  const [plainTextReport, setPlainTextReport] = useState<{
+    filled: string[];
+    skipped: string[];
+    missing: string[];
+    warnings: string[];
+  } | null>(null);
+  const [confirmSampleFor, setConfirmSampleFor] = useState<ResumeTemplateId | null>(null);
   const [profession, setProfession] = useState<string>(SUMMARY_PROFESSIONS[0]);
   const [tone, setTone] = useState<SummaryTone>("professional");
   const [writerNote, setWriterNote] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
+
+  // Preview zoom: "fit" scales the whole sheet into view; 50/75/100% are
+  // fixed scales. The sheet's unscaled height is measured — transforms do not
+  // change offsetHeight, so the measurement stays stable while zoomed.
+  const [zoom, setZoom] = useState<PreviewZoom>("fit");
+  const [sheetHeight, setSheetHeight] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const sheetWrapRef = useRef<HTMLDivElement | null>(null);
 
   // Load a saved resume from this browser only, on first render.
   // The form renders immediately (server-side too) so the page is usable
@@ -161,6 +434,44 @@ export function ResumeBuilder() {
     }
   }, []);
 
+  // Measure the unscaled sheet height (and the viewport) so "Fit" can scale
+  // the whole sheet into view. Re-measures whenever the sheet resizes —
+  // content edits, template/font/theme/photo changes — and on window resize.
+  useLayoutEffect(() => {
+    const el = sheetWrapRef.current;
+    if (!el) return;
+    const measure = () => {
+      const h = el.offsetHeight;
+      if (h > 0) setSheetHeight((prev) => (Math.abs(prev - h) > 1 ? h : prev));
+      setViewportHeight(window.innerHeight);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+
+  // Fit: shrink the sheet just enough to fit the visible preview area
+  // (viewport minus the sticky header, zoom bar and margins). Never enlarge.
+  const FIT_ALLOWANCE_PX = 180;
+  const fitScale =
+    sheetHeight > 0 && viewportHeight > 0
+      ? Math.min(1, Math.max(0.2, (viewportHeight - FIT_ALLOWANCE_PX) / sheetHeight))
+      : 1;
+  const scale = zoom === "fit" ? fitScale : zoom / 100;
+
+  // Empty form: the live preview shows the full template with placeholder
+  // text so the user sees the design at once. previewData is derived, never
+  // stored — the form state, save, upload and DOCX export always use the
+  // real `data`, and the export buttons stay disabled while empty, so
+  // placeholder text can never leak into a PDF or Word file.
+  const isEmpty = isResumeEmpty(data);
+  const previewData = isEmpty ? PLACEHOLDER_RESUME : data;
+
   const set = useCallback(<K extends keyof ResumeData>(key: K, value: ResumeData[K]) => {
     setData((d) => ({ ...d, [key]: value }));
   }, []);
@@ -209,9 +520,34 @@ export function ResumeBuilder() {
     }
   };
 
-  const loadSample = () => {
+  /** Load the sample resume into the form. Never silently overwrites what
+   * the user has typed: the toolbar button asks first, and "Use this
+   * sample" on a template asks inline (see useSample). */
+  const applySample = (id: ResumeTemplateId) => {
+    setTemplate(id);
     setData(SAMPLE_RESUME);
+    setUploadResult(null);
+    setPlainTextReport(null);
+    setPlainTextError(null);
+    setConfirmSampleFor(null);
     setSavedNote("Loaded the sample resume. Replace the details with your own.");
+  };
+
+  const loadSample = () => {
+    if (!isResumeEmpty(data) && !window.confirm("Loading the sample replaces what is in the form now. Continue?")) return;
+    applySample(template);
+  };
+
+  /** "Use this sample" on a template card: selects that template and loads
+   * the sample resume. Empty form loads straight away; a form with the
+   * user's own details opens an inline confirm on that card instead. */
+  const useSample = (id: ResumeTemplateId) => {
+    setTemplate(id);
+    if (isResumeEmpty(data)) {
+      applySample(id);
+      return;
+    }
+    setConfirmSampleFor(id);
   };
 
   const clearAll = () => {
@@ -290,6 +626,152 @@ export function ResumeBuilder() {
     setWriterNote("Summary filled from a template using your details. Edit it freely — it is your text.");
   };
 
+  // -----------------------------------------------------------------------
+  // Phase 3 — "Write it in plain words": paste simple text, fill the form.
+  // Template-based, no AI model: the text is reshaped by
+  // normalisePlainWords() and parsed on this device by the existing
+  // parseResumeText(); nothing is sent anywhere.
+  //
+  // Non-empty-form behaviour (chosen): FILL ONLY BLANK FIELDS. Anything the
+  // user already typed is never overwritten — a filled field is reported as
+  // "already filled, left as it was". Lists (skills, languages) are the one
+  // exception to strict blank-only: new items are appended to the existing
+  // list, never replacing it. Experience / education / academic experience
+  // are replaced only when that whole section is empty; otherwise they are
+  // left untouched and reported as skipped.
+  // -----------------------------------------------------------------------
+  const applyPlainWords = () => {
+    const raw = plainText.trim();
+    setPlainTextError(null);
+    setPlainTextReport(null);
+    if (raw.length < 10) {
+      setPlainTextError("Write a little more first — at least your name and one detail, for example your email or a skill.");
+      return;
+    }
+    const norm = normalisePlainWords(raw);
+    const result = parseResumeText(norm.text);
+    const parsed = result.data;
+    // Plain-words fallbacks the file parser cannot see (see
+    // normalisePlainWords): a name inside "I am …" and skills inside
+    // "I know …". Applied only where the parser left the field blank.
+    const nameFromIntro = !parsed.fullName && norm.nameFromIntro ? norm.nameFromIntro : "";
+    const skillsFromIntro = !parsed.skills && norm.skillsFromIntro.length ? norm.skillsFromIntro : [];
+
+    const filled: string[] = [];
+    const skipped: string[] = [];
+    const next: ResumeData = {
+      ...data,
+      experience: data.experience.map((e) => ({ ...e })),
+      education: data.education.map((e) => ({ ...e })),
+      academicExperience: (data.academicExperience ?? []).map((a) => ({ ...a })),
+    };
+    const fillScalar = (key: "fullName" | "title" | "email" | "phone" | "location" | "website" | "linkedin" | "summary", label: string, value: string) => {
+      if (value.trim() && !data[key].trim()) {
+        next[key] = value;
+        filled.push(label);
+      } else if (value.trim()) {
+        skipped.push(label);
+      }
+    };
+    fillScalar("fullName", "Name", parsed.fullName || nameFromIntro);
+    fillScalar("title", "Job title", parsed.title);
+    fillScalar("email", "Email", parsed.email);
+    fillScalar("phone", "Phone", parsed.phone);
+    fillScalar("location", "Location", parsed.location);
+    fillScalar("website", "Website", parsed.website);
+    fillScalar("linkedin", "LinkedIn", parsed.linkedin);
+    fillScalar("summary", "Summary", parsed.summary);
+    // Skills / languages: blank field takes the parsed list; a filled field
+    // keeps what the user typed and only gains items that are not already there.
+    const mergeList = (key: "skills" | "languages", label: string, parsedText: string, fromIntro: string[]) => {
+      const items = parsedText
+        .split(/[,\n;]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const all = [...items, ...fromIntro];
+      if (!all.length) return;
+      const current = data[key].trim();
+      if (!current) {
+        next[key] = all.join(", ");
+        filled.push(fromIntro.length && !items.length ? `${label} (from “I know…”)` : label);
+        return;
+      }
+      const have = new Set(current.split(/[,\n;]+/).map((s) => s.trim().toLowerCase()));
+      const fresh = all.filter((it) => !have.has(it.toLowerCase()));
+      if (fresh.length) {
+        next[key] = `${current}, ${fresh.join(", ")}`;
+        filled.push(`${label} (added ${fresh.join(", ")})`);
+      } else {
+        skipped.push(label);
+      }
+    };
+    mergeList("skills", "Skills", parsed.skills, skillsFromIntro);
+    mergeList("languages", "Languages", parsed.languages, []);
+    // Whole sections: replace only when the user's section is empty.
+    // (Row ids are ignored — an empty row still has an id.)
+    const expEmpty = data.experience.every((e) => !e.role.trim() && !e.company.trim() && !e.bullets.trim());
+    const eduEmpty = data.education.every((e) => !e.degree.trim() && !e.school.trim());
+    const acadEmpty = (data.academicExperience ?? []).every((a) => !a.title.trim() && !a.org.trim() && !a.bullets.trim());
+    if (parsed.experience.length) {
+      if (expEmpty) {
+        next.experience = parsed.experience;
+        filled.push(`${parsed.experience.length} job${parsed.experience.length > 1 ? "s" : ""}`);
+      } else {
+        skipped.push("Experience (already has entries)");
+      }
+    }
+    if (parsed.education.length) {
+      if (eduEmpty) {
+        next.education = parsed.education;
+        filled.push(`${parsed.education.length} education ${parsed.education.length > 1 ? "entries" : "entry"}`);
+      } else {
+        skipped.push("Education (already has entries)");
+      }
+    }
+    if ((parsed.academicExperience ?? []).length) {
+      if (acadEmpty) {
+        next.academicExperience = parsed.academicExperience;
+        filled.push("Academic experience");
+      } else {
+        skipped.push("Academic experience (already has entries)");
+      }
+    }
+    if (parsed.referencesText?.trim() && !(data.referencesText ?? "").trim()) {
+      next.referencesText = parsed.referencesText;
+      filled.push("References");
+    } else if (parsed.referencesText?.trim()) {
+      skipped.push("References");
+    }
+    if (parsed.referencesOnRequest && !data.referencesOnRequest && !(data.referencesText ?? "").trim()) {
+      next.referencesOnRequest = true;
+      filled.push("References (on request)");
+    }
+    // What is still blank after filling — so the user knows what to add by hand.
+    const stillBlank = (v: string | undefined) => !v?.trim();
+    const missing: string[] = [];
+    if (stillBlank(next.fullName)) missing.push("Name");
+    if (stillBlank(next.title)) missing.push("Job title");
+    if (stillBlank(next.email)) missing.push("Email");
+    if (stillBlank(next.phone)) missing.push("Phone");
+    if (stillBlank(next.location)) missing.push("Location");
+    if (stillBlank(next.summary)) missing.push("Summary");
+    if (next.experience.every((e) => !e.role.trim() && !e.company.trim() && !e.bullets.trim())) missing.push("Experience");
+    if (next.education.every((e) => !e.degree.trim() && !e.school.trim())) missing.push("Education");
+    if (stillBlank(next.skills)) missing.push("Skills");
+    if (stillBlank(next.languages)) missing.push("Languages");
+
+    if (!filled.length) {
+      setPlainTextError(
+        "We couldn't pick out any details from that text. Try short lines — your name on the first line, then your email and phone, then headings like “Skills:” or “Experience:” followed by the details — or fill in the form by hand below.",
+      );
+      setPlainTextReport({ filled, skipped, missing, warnings: result.warnings });
+      return;
+    }
+    setData(next);
+    setPlainTextReport({ filled, skipped, missing, warnings: result.warnings });
+    setSavedNote("Filled in what we could find from your words — check the fields below and fix anything we missed.");
+  };
+
   const onPhoto = (file: File | undefined) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) return;
@@ -312,7 +794,11 @@ export function ResumeBuilder() {
           .no-print { display: none !important; }
           body * { visibility: hidden !important; }
           #resume-print, #resume-print * { visibility: visible !important; }
-          #resume-print { position: absolute !important; left: 0; top: 0; width: 100% !important; max-width: none !important; box-shadow: none !important; padding: 0 !important; print-color-adjust: exact !important; -webkit-print-color-adjust: exact !important; }
+          #resume-print { position: absolute !important; left: 0; top: 0; width: 100% !important; max-width: none !important; box-shadow: none !important; padding: 0 !important; transform: none !important; print-color-adjust: exact !important; -webkit-print-color-adjust: exact !important; }
+          /* The zoom wrappers are screen-only: the !important rules below beat
+             their inline styles, so printing always uses the full-size sheet. */
+          .resume-zoom-outer { height: auto !important; }
+          .resume-zoom-inner { transform: none !important; }
           #resume-print section { break-inside: avoid; }
           #resume-print h1, #resume-print h2 { break-after: avoid; }
         }
@@ -322,7 +808,7 @@ export function ResumeBuilder() {
         <p className="text-xs font-semibold uppercase tracking-wider text-teal-700">Resume builder</p>
         <h1 className="mt-2 font-display text-3xl font-bold text-slate-900 sm:text-4xl">Build a free resume that gets read</h1>
         <p className="mt-2 max-w-2xl leading-relaxed text-slate-600">
-          Fill in the form and watch the preview update live. Pick one of fourteen original templates, choose a
+          Fill in the form and watch the preview update live. Pick one of {TEMPLATES.length} original templates, choose a
           font — MS Word classics or stylish Canva-style fonts — and a colour theme, then export as PDF or
           Word. Already have a resume? Upload it as PDF or Word and we&apos;ll fill in the form for you to
           edit. Your details stay in your browser — nothing is uploaded, and saving uses only this
@@ -334,14 +820,17 @@ export function ResumeBuilder() {
           <button
             type="button"
             onClick={() => window.print()}
-            className="inline-flex items-center gap-2 rounded-full bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
+            disabled={isEmpty}
+            title={isEmpty ? "Add your details first — the preview is showing placeholder text" : undefined}
+            className="inline-flex items-center gap-2 rounded-full bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-50"
           >
             <Printer className="h-4 w-4" /> Export PDF (print → Save as PDF)
           </button>
           <button
             type="button"
             onClick={exportDocx}
-            disabled={docxBusy}
+            disabled={docxBusy || isEmpty}
+            title={isEmpty ? "Add your details first — the preview is showing placeholder text" : undefined}
             className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 hover:border-teal-600 disabled:opacity-50"
           >
             <FileDown className="h-4 w-4" /> {docxBusy ? "Building…" : "Download .docx"}
@@ -422,20 +911,61 @@ export function ResumeBuilder() {
                 <OptionLabel>Template</OptionLabel>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {TEMPLATES.map((t) => (
-                    <button
+                    <div
                       key={t.id}
-                      type="button"
-                      onClick={() => setTemplate(t.id)}
-                      aria-pressed={template === t.id}
-                      className={`rounded-xl border p-3 text-left transition ${
+                      className={`rounded-xl border transition ${
                         template === t.id
                           ? "border-teal-700 bg-teal-50 ring-1 ring-teal-700"
                           : "border-slate-300 bg-white hover:border-teal-600"
                       }`}
                     >
-                      <span className="block text-sm font-bold text-slate-900">{t.name}</span>
-                      <span className="mt-1 block text-xs leading-relaxed text-slate-600">{t.description}</span>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTemplate(t.id);
+                          setConfirmSampleFor(null);
+                        }}
+                        aria-pressed={template === t.id}
+                        className="block w-full p-3 text-left"
+                      >
+                        <LazyThumbnail templateId={t.id} />
+                        <span className="mt-2 block text-sm font-bold text-slate-900">{t.name}</span>
+                        <span className="mt-1 block text-xs leading-relaxed text-slate-600">{t.description}</span>
+                      </button>
+                      <div className="px-3 pb-3">
+                        {confirmSampleFor === t.id ? (
+                          <div className="rounded-lg border border-amber-300 bg-amber-50 p-2.5">
+                            <p className="text-xs font-semibold leading-snug text-amber-900">
+                              Replace what you typed with the sample resume?
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => applySample(t.id)}
+                                className="rounded-full bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800"
+                              >
+                                Yes, use sample
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmSampleFor(null)}
+                                className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:border-teal-600"
+                              >
+                                Keep mine
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => useSample(t.id)}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:border-teal-600"
+                          >
+                            <FolderOpen className="h-3.5 w-3.5" /> Use this sample
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -613,6 +1143,63 @@ export function ResumeBuilder() {
               </div>
             </Section>
 
+            {/* Write it in plain words — template-based, no AI model */}
+            <Section icon={<PenLine className="h-5 w-5" />} title="Write it in plain words">
+              <p className="-mt-1 text-xs leading-relaxed text-slate-600">
+                Type or paste a few sentences about yourself and we will fill in the form for you.
+                <span className="font-semibold text-slate-800"> Template-based — no AI model:</span> your
+                words are matched against plain templates on this device; nothing is sent to a server and no
+                AI writes anything for you. Check every field afterwards — this only picks out what it can
+                recognise, and anything it misses stays blank for you to add by hand.
+              </p>
+              <div>
+                <OptionLabel htmlFor="resume-plain-words">Your details, in your own words</OptionLabel>
+                <textarea
+                  id="resume-plain-words"
+                  className={`${inputCls} min-h-28 pb-3 resize-y`}
+                  value={plainText}
+                  onChange={(e) => setPlainText(e.target.value)}
+                  placeholder={"I am Umer, a law student at National Law College. I know legal research and moot courts. Email umer@example.com. Phone 03331234567."}
+                />
+                <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+                  Short lines work best: your name first, then your email and phone, then lines like
+                  “I know …” for skills. For longer lists, use headings such as “Skills:” or
+                  “Experience:” followed by the details. Fields you already filled in are never
+                  overwritten — only blank fields are filled, and new skills are added to your list.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={applyPlainWords}
+                disabled={!plainText.trim()}
+                className="inline-flex items-center gap-2 rounded-full bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-50"
+              >
+                <PenLine className="h-4 w-4" /> Fill in my resume from this text
+              </button>
+              {plainTextError && (
+                <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-800">{plainTextError}</p>
+              )}
+              {plainTextReport && plainTextReport.filled.length > 0 && (
+                <div className="rounded-xl border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm text-teal-900">
+                  <p className="font-semibold">What we found in your words — check it below and correct anything we missed:</p>
+                  <p className="mt-1">Filled in: {plainTextReport.filled.join(" · ")}</p>
+                  {plainTextReport.skipped.length > 0 && (
+                    <p className="mt-1">Already filled in — left as they were: {plainTextReport.skipped.join(" · ")}</p>
+                  )}
+                  {plainTextReport.missing.length > 0 && (
+                    <p className="mt-1">Still blank — add by hand: {plainTextReport.missing.join(" · ")}</p>
+                  )}
+                  {plainTextReport.warnings.length > 0 && (
+                    <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                      {plainTextReport.warnings.map((w, i) => (
+                        <li key={i}>{w}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </Section>
+
             {/* Personal info */}
             <Section icon={<User className="h-5 w-5" />} title="Personal information">
               <div className="grid gap-3 sm:grid-cols-2">
@@ -652,7 +1239,7 @@ export function ResumeBuilder() {
               <div>
                 <OptionLabel htmlFor="resume-professional-summary">Professional summary</OptionLabel>
                 <textarea id="resume-professional-summary"
-                  className={`${inputCls} min-h-24 resize-y`}
+                  className={`${inputCls} min-h-24 pb-3 resize-y`}
                   value={data.summary}
                   onChange={(e) => set("summary", e.target.value)}
                   placeholder="Two or three sentences about who you are and what you bring."
@@ -772,7 +1359,7 @@ export function ResumeBuilder() {
                   <div className="mt-3">
                     <OptionLabel htmlFor="{exp-bullets-${exp.id}}">What you did — one achievement per line</OptionLabel>
                     <textarea id="{exp-bullets-${exp.id}}"
-                      className={`${inputCls} min-h-20 resize-y`}
+                      className={`${inputCls} min-h-24 pb-3 resize-y`}
                       value={exp.bullets}
                       placeholder={"Resolved 60+ tickets a day\nRaised first-contact resolution to 91%"}
                       onChange={(e) =>
@@ -872,7 +1459,7 @@ export function ResumeBuilder() {
               <div>
                 <OptionLabel htmlFor="resume-skills-separated-by-commas-or-one-per-line">Skills — separated by commas, or one per line</OptionLabel>
                 <textarea id="resume-skills-separated-by-commas-or-one-per-line"
-                  className={`${inputCls} min-h-20 resize-y`}
+                  className={`${inputCls} min-h-24 pb-3 resize-y`}
                   value={data.skills}
                   onChange={(e) => setSkills(e.target.value)}
                   placeholder="Customer support, Zendesk, Live chat, Conflict resolution"
@@ -917,7 +1504,7 @@ export function ResumeBuilder() {
               <div>
                 <OptionLabel htmlFor="resume-languages-separated-by-commas-or-one-per-line">Languages — separated by commas, or one per line</OptionLabel>
                 <textarea id="resume-languages-separated-by-commas-or-one-per-line"
-                  className={`${inputCls} min-h-20 resize-y`}
+                  className={`${inputCls} min-h-24 pb-3 resize-y`}
                   value={data.languages}
                   onChange={(e) => setLanguages(e.target.value)}
                   placeholder="English (native), Spanish (conversational)"
@@ -1021,7 +1608,7 @@ export function ResumeBuilder() {
                   <div className="mt-3">
                     <OptionLabel htmlFor="{acad-bullets-${item.id}}">What you did — one achievement per line</OptionLabel>
                     <textarea id="{acad-bullets-${item.id}}"
-                      className={`${inputCls} min-h-20 resize-y`}
+                      className={`${inputCls} min-h-24 pb-3 resize-y`}
                       value={item.bullets}
                       placeholder={"Participated in the national moot court competition\nStrengthened skills in legal research and argumentation"}
                       onChange={(e) =>
@@ -1066,7 +1653,7 @@ export function ResumeBuilder() {
               <div>
                 <OptionLabel htmlFor="resume-referees-name-role-and-contact-one-per-line-optional">Referees — name, role and contact, one per line (optional)</OptionLabel>
                 <textarea id="resume-referees-name-role-and-contact-one-per-line-optional"
-                  className={`${inputCls} min-h-20 resize-y`}
+                  className={`${inputCls} min-h-24 pb-3 resize-y`}
                   value={data.referencesText ?? ""}
                   disabled={data.referencesOnRequest ?? false}
                   onChange={(e) => set("referencesText", e.target.value)}
@@ -1078,25 +1665,69 @@ export function ResumeBuilder() {
 
           {/* ------------------------------------------------ Preview */}
           <div className="lg:sticky lg:top-20 lg:self-start">
-            <p className="no-print mb-3 text-sm font-semibold text-slate-700">
-              Live preview — {TEMPLATES.find((t) => t.id === template)?.name} template ·{" "}
-              {fontId ? getResumeFont(fontId).name : `Template default (${getResumeFont(TEMPLATE_DEFAULT_FONTS[template]).name})`} ·{" "}
-              {getResumeTheme(themeId).name} theme
-            </p>
+            <div className="no-print mb-3 flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
+              <p className="text-sm font-semibold text-slate-700">
+                Live preview — {TEMPLATES.find((t) => t.id === template)?.name} template ·{" "}
+                {fontId ? getResumeFont(fontId).name : `Template default (${getResumeFont(TEMPLATE_DEFAULT_FONTS[template]).name})`} ·{" "}
+                {getResumeTheme(themeId).name} theme
+              </p>
+              <div className="flex items-center gap-1" role="group" aria-label="Preview zoom">
+                <span className="mr-1 text-xs font-semibold text-slate-600">Zoom</span>
+                {(["fit", 50, 75, 100] as PreviewZoom[]).map((z) => (
+                  <button
+                    key={String(z)}
+                    type="button"
+                    onClick={() => setZoom(z)}
+                    aria-pressed={zoom === z}
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                      zoom === z
+                        ? "bg-teal-700 text-white"
+                        : "border border-slate-300 bg-white text-slate-700 hover:border-teal-600"
+                    }`}
+                  >
+                    {z === "fit" ? "Fit" : `${z}%`}
+                  </button>
+                ))}
+                {zoom === "fit" && sheetHeight > 0 && (
+                  <span className="ml-1 text-xs text-slate-500">showing at {Math.round(scale * 100)}%</span>
+                )}
+              </div>
+            </div>
+            {isEmpty && (
+              <p className="no-print mb-3 rounded-xl bg-teal-50 px-4 py-2.5 text-sm text-teal-900">
+                Showing a placeholder preview so you can see the full{" "}
+                {TEMPLATES.find((t) => t.id === template)?.name} layout. Type your details — or load the
+                sample — and the preview switches to your resume. Placeholder text is never printed or
+                downloaded.
+              </p>
+            )}
             <div className="rounded-2xl border border-slate-200 bg-slate-100 p-4 sm:p-6">
-              <ResumePreview
-                data={data}
-                template={template}
-                dateFormat={dateFormat}
-                photo={photoOn ? photo : null}
-                photoOn={photoOn}
-                fontId={fontId}
-                themeId={themeId}
-              />
+              <div
+                className="resume-zoom-outer mx-auto"
+                style={scale < 1 ? { height: sheetHeight * scale } : undefined}
+              >
+                <div
+                  ref={sheetWrapRef}
+                  className="resume-zoom-inner"
+                  style={scale < 1 ? { transform: `scale(${scale})`, transformOrigin: "top center" } : undefined}
+                >
+                  <ResumePreview
+                    data={previewData}
+                    template={template}
+                    dateFormat={dateFormat}
+                    photo={photoOn ? photo : null}
+                    photoOn={photoOn || isEmpty}
+                    fontId={fontId}
+                    themeId={themeId}
+                    printable={!isEmpty}
+                  />
+                </div>
+              </div>
             </div>
             <p className="no-print mt-3 text-xs leading-relaxed text-slate-500">
               The preview is what the PDF export prints. For the cleanest result, choose “Save as PDF” in the
-              print dialog, A4 paper, and switch off headers and footers.
+              print dialog, A4 paper, and switch off headers and footers. Zoom only changes the on-screen
+              preview — the printed PDF is always full size.
             </p>
           </div>
         </div>
