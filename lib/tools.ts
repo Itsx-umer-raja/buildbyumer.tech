@@ -157,11 +157,11 @@ export const TOOLS: ToolDef[] = [
     title: "Watermark",
     shortTitle: "Watermark",
     description:
-      "Stamp text across your PDF pages — a draft mark, a name, or a notice — with control over position and opacity.",
-    keywords: ["watermark pdf", "stamp pdf", "add text to pdf", "draft mark", "confidential"],
+      "Stamp text — or your own image, like a logo — across your PDF pages, with control over position and opacity.",
+    keywords: ["watermark pdf", "stamp pdf", "add text to pdf", "draft mark", "confidential", "image watermark", "logo watermark"],
     category: "Edit",
     icon: Droplets,
-    limits: "The watermark is drawn onto each page as text. It is visible in any reader, but it is not a security feature.",
+    limits: "The watermark is drawn onto each page, as text or as your uploaded image. PNG images keep their transparency. It is visible in any reader, but it is not a security feature.",
   },
   {
     id: "page-numbers",

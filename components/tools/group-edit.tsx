@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PDFDocument, StandardFonts, rgb, degrees } from "pdf-lib";
 import {
   Dropzone,
@@ -157,13 +157,55 @@ export function OrganizeTool() {
 }
 
 // ---------------------------------------------------------------- Watermark
+
+/** Convert any browser-readable image file to PNG bytes (for pdf-lib's
+ * embedPng). PNG and JPEG are embedded directly without this step; other
+ * types (WebP, GIF, …) go through a canvas so they work too. */
+async function imageFileToPngBytes(file: File): Promise<Uint8Array> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("That image could not be read. Try a PNG or JPEG file."));
+      el.src = url;
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas is not available in this browser.");
+    ctx.drawImage(img, 0, 0);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("That image could not be read. Try a PNG or JPEG file.");
+    return new Uint8Array(await blob.arrayBuffer());
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 export function WatermarkTool() {
   const [file, setFile] = useState<File | null>(null);
   const r = useResult();
+  const [mode, setMode] = useState<"text" | "image">("text");
   const [text, setText] = useState("DRAFT");
   const [position, setPosition] = useState<"center" | "diagonal" | "top" | "bottom">("diagonal");
   const [opacity, setOpacity] = useState(0.3);
   const [size, setSize] = useState(48);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageScale, setImageScale] = useState(30); // image width, % of page width
+
+  // Preview thumbnail for the uploaded watermark image.
+  useEffect(() => {
+    if (!imageFile) {
+      setImageUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(imageFile);
+    setImageUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [imageFile]);
 
   const run = async () => {
     r.setError(null);
@@ -172,55 +214,104 @@ export function WatermarkTool() {
       r.setError("Choose a PDF file to watermark.");
       return;
     }
-    if (!text.trim()) {
+    if (mode === "text" && !text.trim()) {
       r.setError("Enter the watermark text.");
+      return;
+    }
+    if (mode === "image" && !imageFile) {
+      r.setError("Choose an image to use as the watermark.");
       return;
     }
     r.setBusy(true);
     try {
       const doc = await loadPdf(await fileBytes(file));
-      const font = await doc.embedFont(StandardFonts.HelveticaBold);
-      // Helvetica is a WinAnsi font: non-Latin text cannot be drawn at all.
-      // Say so plainly instead of the generic "file may be damaged" error (B-15).
-      assertWatermarkEncodable(font, text);
       const total = doc.getPageCount();
-      let shrunkNote = "";
-      for (const page of doc.getPages()) {
-        const { width, height } = page.getSize();
-        const rotated = position === "diagonal";
-        const fit = fitWatermarkSize(font, text, size, width, height, rotated);
-        if (fit.shrunk) shrunkNote = ` The font was shrunk from ${size} pt to ${fit.size} pt so the text fits on the page.`;
-        if (!fit.fits) {
-          throw new Error(
-            `The watermark text is too long to fit on the page even at the smallest size (8 pt) — shorten the text and try again.`,
-          );
+      if (mode === "image") {
+        const imgFile = imageFile!;
+        const isPng = imgFile.type === "image/png" || imgFile.name.toLowerCase().endsWith(".png");
+        const isJpg = imgFile.type === "image/jpeg" || /\.jpe?g$/i.test(imgFile.name);
+        // PNG keeps its transparency (best for logos); JPEG is embedded as-is;
+        // anything else goes through a canvas first so WebP/GIF work too.
+        const img = isPng
+          ? await doc.embedPng(new Uint8Array(await imgFile.arrayBuffer()))
+          : isJpg
+            ? await doc.embedJpg(new Uint8Array(await imgFile.arrayBuffer()))
+            : await doc.embedPng(await imageFileToPngBytes(imgFile));
+        for (const page of doc.getPages()) {
+          const { width, height } = page.getSize();
+          let w = (width * imageScale) / 100;
+          let h = (w * img.height) / img.width;
+          // Very tall images are capped at 80% of the page height.
+          if (h > height * 0.8) {
+            h = height * 0.8;
+            w = (h * img.width) / img.height;
+          }
+          if (position === "diagonal") {
+            // Centre the -35° rotated bounding box on the page. pdf-lib
+            // rotates the image around its bottom-left corner (x, y), so the
+            // box centre is offset from that corner by the rotated extents.
+            const cos = Math.cos((35 * Math.PI) / 180);
+            const sin = Math.sin((35 * Math.PI) / 180);
+            const x = width / 2 - (w * cos + h * sin) / 2;
+            const y = height / 2 - (h * cos - w * sin) / 2;
+            page.drawImage(img, { x, y, width: w, height: h, opacity, rotate: degrees(-35) });
+          } else if (position === "center") {
+            page.drawImage(img, { x: (width - w) / 2, y: (height - h) / 2, width: w, height: h, opacity });
+          } else if (position === "top") {
+            page.drawImage(img, { x: (width - w) / 2, y: height - h - 40, width: w, height: h, opacity });
+          } else {
+            page.drawImage(img, { x: (width - w) / 2, y: 40, width: w, height: h, opacity });
+          }
         }
-        const effSize = fit.size;
-        const textWidth = fit.textWidth;
-        const opts = { size: effSize, font, color: rgb(0.55, 0.55, 0.55), opacity };
-        if (position === "diagonal") {
-          // Centre the -35° rotated bounding box on the page (B-06): the old
-          // code centred the unrotated text, so long text ran off-page.
-          const cos = Math.cos((35 * Math.PI) / 180);
-          const sin = Math.sin((35 * Math.PI) / 180);
-          const bboxW = textWidth * cos + effSize * sin;
-          const x = width / 2 - bboxW / 2;
-          const y = height / 2 + (textWidth * sin) / 2 - (effSize * cos) / 2;
-          page.drawText(text, { ...opts, x, y, rotate: degrees(-35) });
-        } else if (position === "center") {
-          page.drawText(text, { ...opts, x: (width - textWidth) / 2, y: height / 2 });
-        } else if (position === "top") {
-          page.drawText(text, { ...opts, x: (width - textWidth) / 2, y: height - 60 });
-        } else {
-          page.drawText(text, { ...opts, x: (width - textWidth) / 2, y: 40 });
+        const bytes = await doc.save();
+        r.setResult({
+          bytes,
+          filename: "watermarked.pdf",
+          detail: `Added the image watermark “${imgFile.name}” to ${total} page(s) (${formatBytes(bytes.length)}).`,
+        });
+      } else {
+        const font = await doc.embedFont(StandardFonts.HelveticaBold);
+        // Helvetica is a WinAnsi font: non-Latin text cannot be drawn at all.
+        // Say so plainly instead of the generic "file may be damaged" error (B-15).
+        assertWatermarkEncodable(font, text);
+        let shrunkNote = "";
+        for (const page of doc.getPages()) {
+          const { width, height } = page.getSize();
+          const rotated = position === "diagonal";
+          const fit = fitWatermarkSize(font, text, size, width, height, rotated);
+          if (fit.shrunk) shrunkNote = ` The font was shrunk from ${size} pt to ${fit.size} pt so the text fits on the page.`;
+          if (!fit.fits) {
+            throw new Error(
+              `The watermark text is too long to fit on the page even at the smallest size (8 pt) — shorten the text and try again.`,
+            );
+          }
+          const effSize = fit.size;
+          const textWidth = fit.textWidth;
+          const opts = { size: effSize, font, color: rgb(0.55, 0.55, 0.55), opacity };
+          if (position === "diagonal") {
+            // Centre the -35° rotated bounding box on the page (B-06): the old
+            // code centred the unrotated text, so long text ran off-page.
+            const cos = Math.cos((35 * Math.PI) / 180);
+            const sin = Math.sin((35 * Math.PI) / 180);
+            const bboxW = textWidth * cos + effSize * sin;
+            const x = width / 2 - bboxW / 2;
+            const y = height / 2 + (textWidth * sin) / 2 - (effSize * cos) / 2;
+            page.drawText(text, { ...opts, x, y, rotate: degrees(-35) });
+          } else if (position === "center") {
+            page.drawText(text, { ...opts, x: (width - textWidth) / 2, y: height / 2 });
+          } else if (position === "top") {
+            page.drawText(text, { ...opts, x: (width - textWidth) / 2, y: height - 60 });
+          } else {
+            page.drawText(text, { ...opts, x: (width - textWidth) / 2, y: 40 });
+          }
         }
+        const bytes = await doc.save();
+        r.setResult({
+          bytes,
+          filename: "watermarked.pdf",
+          detail: `Added the watermark “${text}” to ${total} page(s) (${formatBytes(bytes.length)}).${shrunkNote}`,
+        });
       }
-      const bytes = await doc.save();
-      r.setResult({
-        bytes,
-        filename: "watermarked.pdf",
-        detail: `Added the watermark “${text}” to ${total} page(s) (${formatBytes(bytes.length)}).${shrunkNote}`,
-      });
     } catch (e) {
       r.setError(e instanceof Error ? e.message : "Watermarking failed. The file may be damaged or password-protected.");
     } finally {
@@ -232,11 +323,55 @@ export function WatermarkTool() {
     <div>
       <Dropzone accept="application/pdf,.pdf" onFiles={(fs) => setFile(fs[0] ?? null)} hint="One PDF file" />
       {file && <FileList files={[file]} onRemove={() => setFile(null)} />}
-      <div className="mt-5 grid gap-4 sm:grid-cols-2">
-        <div>
-          <OptionLabel htmlFor="edit-watermark-text">Watermark text</OptionLabel>
-          <input id="edit-watermark-text" className={inputCls} value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. DRAFT" />
+      <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Watermark type">
+        <button
+          type="button"
+          onClick={() => setMode("text")}
+          aria-pressed={mode === "text"}
+          className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+            mode === "text" ? "bg-teal-700 text-white" : "border border-slate-300 bg-white text-slate-700 hover:border-teal-600"
+          }`}
+        >
+          Text watermark
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("image")}
+          aria-pressed={mode === "image"}
+          className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+            mode === "image" ? "bg-teal-700 text-white" : "border border-slate-300 bg-white text-slate-700 hover:border-teal-600"
+          }`}
+        >
+          Image watermark
+        </button>
+      </div>
+      {mode === "image" && (
+        <div className="mt-5">
+          <OptionLabel>Watermark image</OptionLabel>
+          <Dropzone
+            accept="image/png,image/jpeg,image/webp,image/gif,.png,.jpg,.jpeg,.webp,.gif"
+            onFiles={(fs) => setImageFile(fs[0] ?? null)}
+            hint="A PNG, JPEG, WebP or GIF image — your logo, for example"
+          />
+          {imageFile && <FileList files={[imageFile]} onRemove={() => setImageFile(null)} />}
+          {imageUrl && (
+            <div className="mt-3 flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
+              <img src={imageUrl} alt="Watermark preview" className="h-16 w-16 shrink-0 rounded-lg border border-slate-200 bg-slate-100 object-contain" />
+              <p className="text-xs leading-relaxed text-slate-600">
+                This is the image that will be stamped on every page. A PNG with a transparent background works
+                best for logos — the transparency is kept.
+              </p>
+            </div>
+          )}
         </div>
+      )}
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        {mode === "text" && (
+          <div>
+            <OptionLabel htmlFor="edit-watermark-text">Watermark text</OptionLabel>
+            <input id="edit-watermark-text" className={inputCls} value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. DRAFT" />
+          </div>
+        )}
         <div>
           <OptionLabel htmlFor="edit-position">Position</OptionLabel>
           <select id="edit-position" className={selectCls} value={position} onChange={(e) => setPosition(e.target.value as "center" | "diagonal" | "top" | "bottom")}>
@@ -250,16 +385,24 @@ export function WatermarkTool() {
           <OptionLabel htmlFor="edit-watermark-opacity">Opacity ({Math.round(opacity * 100)}%)</OptionLabel>
           <input id="edit-watermark-opacity" type="range" min={5} max={80} value={Math.round(opacity * 100)} onChange={(e) => setOpacity(Number(e.target.value) / 100)} className="w-full accent-teal-700" />
         </div>
-        <div>
-          <OptionLabel htmlFor="edit-watermark-size">Text size ({size} pt)</OptionLabel>
-          <input id="edit-watermark-size" type="range" min={18} max={96} value={size} onChange={(e) => setSize(Number(e.target.value))} className="w-full accent-teal-700" />
-        </div>
+        {mode === "text" ? (
+          <div>
+            <OptionLabel htmlFor="edit-watermark-size">Text size ({size} pt)</OptionLabel>
+            <input id="edit-watermark-size" type="range" min={18} max={96} value={size} onChange={(e) => setSize(Number(e.target.value))} className="w-full accent-teal-700" />
+          </div>
+        ) : (
+          <div>
+            <OptionLabel htmlFor="edit-watermark-image-size">Image width ({imageScale}% of the page)</OptionLabel>
+            <input id="edit-watermark-image-size" type="range" min={10} max={80} value={imageScale} onChange={(e) => setImageScale(Number(e.target.value))} className="w-full accent-teal-700" />
+          </div>
+        )}
       </div>
       <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm leading-relaxed text-slate-700">
-        Long text is automatically shrunk so the watermark fits on the page. The watermark font supports
-        Latin letters, numbers and basic punctuation only.
+        {mode === "text"
+          ? "Long text is automatically shrunk so the watermark fits on the page. The watermark font supports Latin letters, numbers and basic punctuation only."
+          : "The image is stamped on every page at the width you choose, keeping its proportions. Very tall images are capped at 80% of the page height. PNG images keep their transparency; JPEG, WebP and GIF images are converted automatically."}
       </p>
-      <ProcessButton busy={r.busy} disabled={!file} label="Add watermark" busyLabel="Adding…" onClick={run} />
+      <ProcessButton busy={r.busy} disabled={!file || (mode === "image" && !imageFile)} label="Add watermark" busyLabel="Adding…" onClick={run} />
       <ErrorNote message={r.error} />
       {r.result && <ResultCard title="Your watermarked PDF is ready" detail={r.result.detail} filename={r.result.filename} onDownload={r.download} />}
     </div>
